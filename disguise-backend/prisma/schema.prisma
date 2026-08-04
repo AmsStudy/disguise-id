@@ -1,6 +1,17 @@
 // This is your Prisma schema file
 // Learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+enum MlV2ReviewStatus {
+  PENDING
+  COMPLETED
+}
+
+enum MlV2ReviewDecision {
+  CONFIRMED
+  REJECTED
+  INCONCLUSIVE
+}
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -26,13 +37,14 @@ model Organization {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
-  users            User[]
-  cctvSources      CctvSource[]
-  watchlistPersons WatchlistPerson[]
-  detectionEvents  DetectionEvent[]
-  alerts           Alert[]
-  cases            Case[]
-  auditLogs        AuditLog[]
+  users               User[]
+  cctvSources         CctvSource[]
+  watchlistPersons    WatchlistPerson[]
+  detectionEvents     DetectionEvent[]
+  alerts              Alert[]
+  cases               Case[]
+  auditLogs           AuditLog[]
+  mlV2OperatorReviews MlV2OperatorReview[]
 
   @@map("organizations")
 }
@@ -54,16 +66,17 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization     Organization      @relation(fields: [organizationId], references: [id])
-  watchlistPersons WatchlistPerson[] @relation("AddedByUser")
-  watchlistPhotos  WatchlistPhoto[]  @relation("UploadedByUser")
-  assignedAlerts   Alert[]           @relation("AssignedAlerts")
-  reviewedAlerts   Alert[]           @relation("ReviewedAlerts")
-  caseLeads        Case[]            @relation("CaseLeadInvestigator")
-  casesCreated     Case[]            @relation("CasesCreatedBy")
-  caseAlertsAdded  CaseAlert[]
-  caseNotes        CaseNote[]
-  auditLogs        AuditLog[]
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  watchlistPersons    WatchlistPerson[]    @relation("AddedByUser")
+  watchlistPhotos     WatchlistPhoto[]     @relation("UploadedByUser")
+  assignedAlerts      Alert[]              @relation("AssignedAlerts")
+  reviewedAlerts      Alert[]              @relation("ReviewedAlerts")
+  caseLeads           Case[]               @relation("CaseLeadInvestigator")
+  casesCreated        Case[]               @relation("CasesCreatedBy")
+  caseAlertsAdded     CaseAlert[]
+  caseNotes           CaseNote[]
+  auditLogs           AuditLog[]
+  mlV2OperatorReviews MlV2OperatorReview[]
 
   @@index([organizationId], name: "idx_users_org")
   @@index([email], name: "idx_users_email")
@@ -335,12 +348,41 @@ model MlV2InferenceResult {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  detectionEvent DetectionEvent @relation(fields: [detectionEventId], references: [id], onDelete: Cascade)
+  detectionEvent DetectionEvent      @relation(fields: [detectionEventId], references: [id], onDelete: Cascade)
+  operatorReview MlV2OperatorReview?
 
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([frameDecision, createdAt])
   @@map("ml_v2_inference_results")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Operator Review
+// ─────────────────────────────────────────────────────────────
+model MlV2OperatorReview {
+  id                String  @id @default(uuid())
+  inferenceResultId String  @unique @map("inference_result_id")
+  organizationId    String  @map("organization_id")
+  reviewerId        String? @map("reviewer_id")
+
+  status              MlV2ReviewStatus    @default(PENDING)
+  decision            MlV2ReviewDecision?
+  reviewedCandidateId String?             @map("reviewed_candidate_id")
+  notes               String?             @db.Text
+
+  claimedAt  DateTime? @map("claimed_at") @db.Timestamptz()
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz()
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  inferenceResult MlV2InferenceResult @relation(fields: [inferenceResultId], references: [id], onDelete: Cascade)
+  organization    Organization        @relation(fields: [organizationId], references: [id])
+  reviewer        User?               @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt], name: "idx_v2_review_org_status")
+  @@index([reviewerId, status, createdAt], name: "idx_v2_review_reviewer_status")
+  @@map("ml_v2_operator_reviews")
 }
 
 // ─────────────────────────────────────────────────────────────

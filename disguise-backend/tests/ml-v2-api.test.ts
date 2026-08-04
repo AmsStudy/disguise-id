@@ -3,6 +3,15 @@ import app from '../src/app';
 import prisma from '../src/config/database';
 import jwt from 'jsonwebtoken';
 
+jest.mock('../src/config/redis', () => ({
+  getRedis: jest.fn().mockReturnValue({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+  }),
+  connectRedis: jest.fn(),
+  disconnectRedis: jest.fn(),
+}));
+
 describe('Phase 3C: ML V2 Observability API', () => {
   let adminToken: string;
   let otherOrgAdminToken: string;
