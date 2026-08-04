@@ -1,0 +1,27 @@
+.env
+.env.*
+!.env.example
+*.env.pi
+
+disguise-backend/known.jpg
+disguise-backend/unknown.jpg
+disguise-backend/logs/
+*.jsonl
+
+staging_extract/
+staging_missing/
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+*.env.pi
+
+# Phase 3A local files
+disguise-backend/known.jpg
+disguise-backend/unknown.jpg
+disguise-backend/logs/
+*.jsonl
+
+# Temporary extraction directories
+staging_extract/
+staging_missing/

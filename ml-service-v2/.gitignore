@@ -1,0 +1,56 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node.js
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# ML models and generated outputs
+*.pt
+*.pth
+outputs/
+checkpoints/
+
+# Local model assets
+models/
+buffalo_l/
+
+# Dataset and media
+dataset/
+datasets/
+*.jpg
+*.jpeg
+*.png
+*.mp4
+*.avi
+*.mkv
+
+# Logs
+logs/
+*.log
+*.jsonl
+
+# Archives
+*.zip
+
+# Temporary review/extraction files
+staging_extract/
+staging_missing/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

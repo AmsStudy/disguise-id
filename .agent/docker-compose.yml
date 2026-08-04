@@ -1,0 +1,200 @@
+version: "3.9"
+
+# =====================================================================
+# DISGUISE-ID — Docker Compose (Laptop Ubuntu, Jaringan Lokal)
+# =====================================================================
+# SEMUA service jalan di laptop Ubuntu (172.125.0.255)
+# Pi akses backend via: http://172.125.0.255:3000
+# Browser akses frontend via: http://172.125.0.255:3001
+# Akses luar via: https://api3.walldev.my.id (Cloudflare tunnel)
+#
+# SYARAT SEBELUM JALANKAN:
+#   1. Install nvidia-container-toolkit (untuk ML Service pakai RTX 4050)
+#      sudo apt install -y nvidia-container-toolkit
+#      sudo nvidia-ctk runtime configure --runtime=docker
+#      sudo systemctl restart docker
+#   2. Verifikasi GPU terdeteksi Docker:
+#      docker run --rm --gpus all nvidia/cuda:12.1-base-ubuntu22.04 nvidia-smi
+# =====================================================================
+
+services:
+
+  # ── PostgreSQL + pgvector ─────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: disguiseid_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: disguiseid_dev
+      POSTGRES_USER: disguiseid
+      POSTGRES_PASSWORD: disglocal123
+    ports:
+      - "172.125.0.255:5432:5432"  # hanya expose ke IP lokal laptop
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U disguiseid -d disguiseid_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - disgid-net
+
+  # ── Redis ─────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: disguiseid_redis
+    restart: unless-stopped
+    command: redis-server --requirepass redislocal123 --appendonly yes
+    ports:
+      - "172.125.0.255:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redislocal123", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - disgid-net
+
+  # ── MinIO ─────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: disguiseid_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "172.125.0.255:9000:9000"
+      - "172.125.0.255:9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - disgid-net
+
+  # ── ML Service (Python FastAPI + RTX 4050) ────────────────────────
+  # Ini yang menjalankan InceptionResnetV1 untuk hitung embedding wajah
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: disguiseid_ml
+    restart: unless-stopped
+    ports:
+      - "172.125.0.255:8000:8000"  # hanya backend yang akses ini
+    environment:
+      - MODEL_PATH=/app/models/best_verification_model.pth
+      - DEVICE=cuda                 # pakai RTX 4050
+      - THRESHOLD=0.5703            # dari hasil kalibrasi penelitian
+    volumes:
+      - ./ml-service/models:/app/models  # letakkan .pth file di sini
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+    networks:
+      - disgid-net
+
+  # ── Backend Express.js ────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: disguiseid_backend
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3000:3000"   # expose ke SEMUA interface:
+                                # - Pi bisa akses via 172.125.0.255:3000
+                                # - Cloudflare tunnel bisa akses via localhost:3000
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://disguiseid:disglocal123@postgres:5432/disguiseid_dev
+      REDIS_URL: redis://:redislocal123@redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET_FRAMES: cctv-frames
+      MINIO_BUCKET_FACES: face-crops
+      MINIO_BUCKET_WATCHLIST: watchlist-photos
+      MINIO_BUCKET_MODELS: ml-models
+      ML_SERVICE_URL: http://ml-service:8000
+      ML_SERVICE_API_KEY: ml-internal-key-dev
+      JWT_SECRET: dev-jwt-secret-ganti-production
+      JWT_REFRESH_SECRET: dev-refresh-secret-ganti-production
+      JWT_EXPIRES_IN: 8h
+      JWT_REFRESH_EXPIRES_IN: 7d
+      FRONTEND_URL: http://172.125.0.255:3001
+      RATE_LIMIT_CAMERA_MAX: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    networks:
+      - disgid-net
+
+  # ── Frontend Next.js ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: disguiseid_frontend
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:3001:3001"   # akses dari browser: http://172.125.0.255:3001
+    environment:
+      NEXT_PUBLIC_API_URL: http://172.125.0.255:3000
+      NEXT_PUBLIC_WS_URL: ws://172.125.0.255:3000
+    depends_on:
+      - backend
+    networks:
+      - disgid-net
+
+  # ── MinIO Bucket Setup (jalan sekali lalu exit) ───────────────────
+  minio-setup:
+    image: minio/mc:latest
+    container_name: disguiseid_minio_setup
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 minioadmin minioadmin123;
+      mc mb --ignore-existing local/cctv-frames;
+      mc mb --ignore-existing local/face-crops;
+      mc mb --ignore-existing local/watchlist-photos;
+      mc mb --ignore-existing local/ml-models;
+      echo 'Buckets siap.';
+      exit 0;
+      "
+    networks:
+      - disgid-net
+
+networks:
+  disgid-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16  # jaringan internal Docker (beda dari jaringan lokal)
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
