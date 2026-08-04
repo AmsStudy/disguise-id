@@ -40,17 +40,13 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
   let claimedInferenceId: string;
 
   beforeAll(async () => {
-    // Cleanup first to avoid Unique Constraint failures from previous interrupted runs
-    await prisma.mlV2OperatorReview.deleteMany({});
-    await prisma.mlV2InferenceResult.deleteMany({});
-    await prisma.detectionEvent.deleteMany({});
-    await prisma.cctvSource.deleteMany({});
-    await prisma.user.deleteMany({
-      where: { email: { in: ['admin@test.com', 'operator@test.com', 'operator2@test.com', 'user@test.com'] } }
-    });
-    await prisma.organization.deleteMany({
-      where: { code: { in: ['ORG1', 'ORG2'] } }
-    });
+    const orgs = [ORG_ID, ORG2_ID];
+    await prisma.mlV2OperatorReview.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.mlV2InferenceResult.deleteMany({ where: { detectionEvent: { organizationId: { in: orgs } } } });
+    await prisma.detectionEvent.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.cctvSource.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.user.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.organization.deleteMany({ where: { id: { in: orgs } } });
 
     // Setup Organizations and CctvSource
     await prisma.organization.createMany({
@@ -138,17 +134,15 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
   });
 
   afterAll(async () => {
-    await prisma.auditLog.deleteMany({});
-    await prisma.mlV2OperatorReview.deleteMany({});
-    await prisma.mlV2InferenceResult.deleteMany({});
-    await prisma.detectionEvent.deleteMany({});
-    await prisma.cctvSource.deleteMany({});
-    await prisma.user.deleteMany({
-      where: { email: { in: ['admin@test.com', 'operator@test.com', 'operator2@test.com', 'user@test.com'] } }
-    });
-    await prisma.organization.deleteMany({
-      where: { code: { in: ['ORG1', 'ORG2'] } }
-    });
+    const orgs = [ORG_ID, ORG2_ID];
+    const users = await prisma.user.findMany({ where: { organizationId: { in: orgs } } });
+    await prisma.auditLog.deleteMany({ where: { userId: { in: users.map(u => u.id) } } });
+    await prisma.mlV2OperatorReview.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.mlV2InferenceResult.deleteMany({ where: { detectionEvent: { organizationId: { in: orgs } } } });
+    await prisma.detectionEvent.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.cctvSource.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.user.deleteMany({ where: { organizationId: { in: orgs } } });
+    await prisma.organization.deleteMany({ where: { id: { in: orgs } } });
     await prisma.$disconnect();
   });
 
@@ -171,7 +165,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
         .set('Authorization', `Bearer ${operatorToken}`);
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      
+
       const items = res.body.data;
       // Should include unclaimed (eligibleInferenceId) and claimed_by_me (claimedInferenceId)
       expect(items.find((i: any) => i.id === eligibleInferenceId)).toBeDefined();
@@ -240,10 +234,29 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
     let reviewIdToComplete: string;
 
     beforeAll(async () => {
-      const review = await prisma.mlV2OperatorReview.findFirst({
-        where: { reviewerId: OPERATOR2_ID, status: 'PENDING' }
+      const tempEv = await prisma.detectionEvent.create({ data: { organizationId: ORG_ID, sourceId } });
+      const tempInf = await prisma.mlV2InferenceResult.create({
+        data: {
+          detectionEventId: tempEv.id,
+          status: 'SUCCESS',
+          requiresOperatorVerification: true,
+          frameDecision: 'POSSIBLE_CANDIDATE',
+          candidateId: 'DID100',
+          score: 0.7,
+        }
       });
-      reviewIdToComplete = review!.id;
+      const review = await prisma.mlV2OperatorReview.create({
+        data: {
+          inferenceResultId: tempInf.id,
+          organizationId: ORG_ID,
+          reviewerId: OPERATOR2_ID,
+          status: 'PENDING'
+        }
+      });
+
+      // Assert setup success instead of !
+      expect(review.id).toBeDefined();
+      reviewIdToComplete = review.id;
     });
 
     it('another operator cannot complete someone elses review', async () => {
@@ -271,7 +284,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
         .send({ decision: 'REJECTED', notes: 'too late' });
       expect(res.status).toBe(409);
     });
-    
+
     it('REJECTED payload rejects reviewedCandidateId', async () => {
       // Create a fresh pending review for this test
       const tempEv = await prisma.detectionEvent.create({ data: { organizationId: ORG_ID, sourceId } });
@@ -285,7 +298,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
         .post(`/api/v1/ml-v2/reviews/${rId}/complete`)
         .set('Authorization', `Bearer ${operatorToken}`)
         .send({ decision: 'REJECTED', reviewedCandidateId: 'DID001', notes: 'rejecting' });
-      
+
       expect(res.status).toBe(400); // Validation error
     });
   });

@@ -18,6 +18,7 @@ import { settingsRouter } from './modules/settings/settings.router';
 import { iotRouter } from './modules/iot/iot.router';
 import { mlV2Router, detectionEventMlV2Router } from './modules/ml-v2/ml-v2.router';
 import { mlV2ReviewRouter } from './modules/ml-v2-review/review.router';
+import promotionRouter from './modules/ml-v2-promotion/promotion.router';
 
 const app = express();
 
@@ -79,6 +80,7 @@ app.use(`${API_PREFIX}/audit-logs`, auditRouter);
 app.use(`${API_PREFIX}/settings`, settingsRouter);
 app.use(`${API_PREFIX}/iot`, iotRouter);
 app.use(`${API_PREFIX}/ml-v2`, mlV2ReviewRouter);
+app.use(`${API_PREFIX}/ml-v2`, promotionRouter);
 app.use(`${API_PREFIX}/ml-v2`, mlV2Router);
 app.use(`${API_PREFIX}/detection-events`, detectionEventMlV2Router);
 

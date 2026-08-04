@@ -37,14 +37,15 @@ model Organization {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
-  users               User[]
-  cctvSources         CctvSource[]
-  watchlistPersons    WatchlistPerson[]
-  detectionEvents     DetectionEvent[]
-  alerts              Alert[]
-  cases               Case[]
-  auditLogs           AuditLog[]
-  mlV2OperatorReviews MlV2OperatorReview[]
+  users                  User[]
+  cctvSources            CctvSource[]
+  watchlistPersons       WatchlistPerson[]
+  detectionEvents        DetectionEvent[]
+  alerts                 Alert[]
+  cases                  Case[]
+  auditLogs              AuditLog[]
+  mlV2OperatorReviews    MlV2OperatorReview[]
+  mlV2ReviewedPromotions MlV2ReviewedPromotion[]
 
   @@map("organizations")
 }
@@ -66,17 +67,18 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization        Organization         @relation(fields: [organizationId], references: [id])
-  watchlistPersons    WatchlistPerson[]    @relation("AddedByUser")
-  watchlistPhotos     WatchlistPhoto[]     @relation("UploadedByUser")
-  assignedAlerts      Alert[]              @relation("AssignedAlerts")
-  reviewedAlerts      Alert[]              @relation("ReviewedAlerts")
-  caseLeads           Case[]               @relation("CaseLeadInvestigator")
-  casesCreated        Case[]               @relation("CasesCreatedBy")
-  caseAlertsAdded     CaseAlert[]
-  caseNotes           CaseNote[]
-  auditLogs           AuditLog[]
-  mlV2OperatorReviews MlV2OperatorReview[]
+  organization          Organization            @relation(fields: [organizationId], references: [id])
+  watchlistPersons      WatchlistPerson[]       @relation("AddedByUser")
+  watchlistPhotos       WatchlistPhoto[]        @relation("UploadedByUser")
+  assignedAlerts        Alert[]                 @relation("AssignedAlerts")
+  reviewedAlerts        Alert[]                 @relation("ReviewedAlerts")
+  caseLeads             Case[]                  @relation("CaseLeadInvestigator")
+  casesCreated          Case[]                  @relation("CasesCreatedBy")
+  caseAlertsAdded       CaseAlert[]
+  caseNotes             CaseNote[]
+  auditLogs             AuditLog[]
+  mlV2OperatorReviews   MlV2OperatorReview[]
+  mlV2PromotionsCreated MlV2ReviewedPromotion[]
 
   @@index([organizationId], name: "idx_users_org")
   @@index([email], name: "idx_users_email")
@@ -376,13 +378,40 @@ model MlV2OperatorReview {
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  inferenceResult MlV2InferenceResult @relation(fields: [inferenceResultId], references: [id], onDelete: Cascade)
-  organization    Organization        @relation(fields: [organizationId], references: [id])
-  reviewer        User?               @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  inferenceResult MlV2InferenceResult    @relation(fields: [inferenceResultId], references: [id], onDelete: Cascade)
+  organization    Organization           @relation(fields: [organizationId], references: [id])
+  reviewer        User?                  @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  promotion       MlV2ReviewedPromotion?
 
   @@index([organizationId, status, createdAt], name: "idx_v2_review_org_status")
   @@index([reviewerId, status, createdAt], name: "idx_v2_review_reviewer_status")
   @@map("ml_v2_operator_reviews")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Reviewed Promotion (Phase 3E)
+// ─────────────────────────────────────────────────────────────
+model MlV2ReviewedPromotion {
+  id             String @id @default(uuid())
+  reviewId       String @unique @map("review_id")
+  organizationId String @map("organization_id")
+  promotedById   String @map("promoted_by_id")
+
+  promotedCandidateId String  @map("promoted_candidate_id")
+  notes               String? @db.Text
+
+  promotedAt DateTime @default(now()) @map("promoted_at") @db.Timestamptz()
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  review       MlV2OperatorReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  promotedBy   User               @relation(fields: [promotedById], references: [id])
+
+  @@index([organizationId, promotedAt], name: "idx_v2_promotion_org")
+  @@index([promotedById, promotedAt], name: "idx_v2_promotion_user")
+  @@index([promotedCandidateId, promotedAt], name: "idx_v2_promotion_candidate")
+  @@map("ml_v2_reviewed_promotions")
 }
 
 // ─────────────────────────────────────────────────────────────
