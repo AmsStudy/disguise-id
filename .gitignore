@@ -25,3 +25,26 @@ disguise-backend/logs/
 # Temporary extraction directories
 staging_extract/
 staging_missing/
+
+
+# Local IDE/agent settings
+.claude/settings.local.json
+last_command_session_gemini.md
+
+# Python caches
+**/__pycache__/
+*.py[cod]
+
+# Local archives
+*.zip
+
+# Local test assets
+disguise-backend/dummy.jpg
+
+# Model binaries
+*.pth
+*.pt
+
+# Runtime artifacts
+logs/
+*.jsonl
