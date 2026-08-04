@@ -16,23 +16,23 @@ datasource db {
 // Organizations — multi-tenant root entity
 // ─────────────────────────────────────────────────────────────
 model Organization {
-  id        String   @id @default(uuid())
-  name      String   @db.VarChar(255)
-  code      String   @unique @db.VarChar(50)
-  plan      String   @default("basic") @db.VarChar(50)
-  settings  Json     @default("{}")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+  id        String    @id @default(uuid())
+  name      String    @db.VarChar(255)
+  code      String    @unique @db.VarChar(50)
+  plan      String    @default("basic") @db.VarChar(50)
+  settings  Json      @default("{}")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
-  users              User[]
-  cctvSources        CctvSource[]
-  watchlistPersons   WatchlistPerson[]
-  detectionEvents    DetectionEvent[]
-  alerts             Alert[]
-  cases              Case[]
-  auditLogs          AuditLog[]
+  users            User[]
+  cctvSources      CctvSource[]
+  watchlistPersons WatchlistPerson[]
+  detectionEvents  DetectionEvent[]
+  alerts           Alert[]
+  cases            Case[]
+  auditLogs        AuditLog[]
 
   @@map("organizations")
 }
@@ -54,16 +54,16 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization       Organization      @relation(fields: [organizationId], references: [id])
-  watchlistPersons   WatchlistPerson[] @relation("AddedByUser")
-  watchlistPhotos    WatchlistPhoto[]  @relation("UploadedByUser")
-  assignedAlerts     Alert[]           @relation("AssignedAlerts")
-  reviewedAlerts     Alert[]           @relation("ReviewedAlerts")
-  caseLeads          Case[]            @relation("CaseLeadInvestigator")
-  casesCreated       Case[]            @relation("CasesCreatedBy")
-  caseAlertsAdded    CaseAlert[]
-  caseNotes          CaseNote[]
-  auditLogs          AuditLog[]
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  watchlistPersons WatchlistPerson[] @relation("AddedByUser")
+  watchlistPhotos  WatchlistPhoto[]  @relation("UploadedByUser")
+  assignedAlerts   Alert[]           @relation("AssignedAlerts")
+  reviewedAlerts   Alert[]           @relation("ReviewedAlerts")
+  caseLeads        Case[]            @relation("CaseLeadInvestigator")
+  casesCreated     Case[]            @relation("CasesCreatedBy")
+  caseAlertsAdded  CaseAlert[]
+  caseNotes        CaseNote[]
+  auditLogs        AuditLog[]
 
   @@index([organizationId], name: "idx_users_org")
   @@index([email], name: "idx_users_email")
@@ -160,25 +160,26 @@ model WatchlistPhoto {
 // Detection Events
 // ─────────────────────────────────────────────────────────────
 model DetectionEvent {
-  id             String    @id @default(uuid())
-  organizationId String    @map("organization_id")
-  sourceId       String    @map("source_id")
-  frameUrl       String?   @map("frame_url")
-  faceCropUrl    String?   @map("face_crop_url")
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  sourceId       String   @map("source_id")
+  frameUrl       String?  @map("frame_url")
+  faceCropUrl    String?  @map("face_crop_url")
   // embedding stored via raw SQL
-  bestMatchId    String?   @map("best_match_id")
-  bestMatchSim   Decimal?  @map("best_match_sim") @db.Decimal(6, 5)
-  isMatch        Boolean   @default(false) @map("is_match")
-  processingMs   Int?      @map("processing_ms")
-  modelVersion   String    @default("v1") @map("model_version") @db.VarChar(50)
-  metadata       Json      @default("{}")
-  detectedAt     DateTime  @default(now()) @map("detected_at") @db.Timestamptz()
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  bestMatchId    String?  @map("best_match_id")
+  bestMatchSim   Decimal? @map("best_match_sim") @db.Decimal(6, 5)
+  isMatch        Boolean  @default(false) @map("is_match")
+  processingMs   Int?     @map("processing_ms")
+  modelVersion   String   @default("v1") @map("model_version") @db.VarChar(50)
+  metadata       Json     @default("{}")
+  detectedAt     DateTime @default(now()) @map("detected_at") @db.Timestamptz()
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
-  source       CctvSource      @relation(fields: [sourceId], references: [id])
-  bestMatch    WatchlistPerson? @relation("BestMatchPerson", fields: [bestMatchId], references: [id])
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  source       CctvSource           @relation(fields: [sourceId], references: [id])
+  bestMatch    WatchlistPerson?     @relation("BestMatchPerson", fields: [bestMatchId], references: [id])
   alerts       Alert[]
+  mlV2Result   MlV2InferenceResult?
 
   @@index([organizationId], name: "idx_events_org_date")
   @@index([sourceId], name: "idx_events_source")
@@ -196,7 +197,7 @@ model Alert {
   personId         String    @map("person_id")
   similarityScore  Decimal   @map("similarity_score") @db.Decimal(6, 5)
   status           String    @default("pending") @db.VarChar(50) // pending | confirmed | dismissed | false_positive
-  priority         String    @default("medium") @db.VarChar(50)  // low | medium | high | critical
+  priority         String    @default("medium") @db.VarChar(50) // low | medium | high | critical
   assignedTo       String?   @map("assigned_to")
   reviewedBy       String?   @map("reviewed_by")
   reviewedAt       DateTime? @map("reviewed_at") @db.Timestamptz()
@@ -205,12 +206,12 @@ model Alert {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
-  organization    Organization   @relation(fields: [organizationId], references: [id])
-  detectionEvent  DetectionEvent @relation(fields: [detectionEventId], references: [id])
-  person          WatchlistPerson @relation(fields: [personId], references: [id])
-  assignedToUser  User?          @relation("AssignedAlerts", fields: [assignedTo], references: [id])
-  reviewedByUser  User?          @relation("ReviewedAlerts", fields: [reviewedBy], references: [id])
-  caseAlerts      CaseAlert[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  detectionEvent DetectionEvent  @relation(fields: [detectionEventId], references: [id])
+  person         WatchlistPerson @relation(fields: [personId], references: [id])
+  assignedToUser User?           @relation("AssignedAlerts", fields: [assignedTo], references: [id])
+  reviewedByUser User?           @relation("ReviewedAlerts", fields: [reviewedBy], references: [id])
+  caseAlerts     CaseAlert[]
 
   @@index([organizationId], name: "idx_alerts_org_status")
   @@index([assignedTo], name: "idx_alerts_assigned")
@@ -221,37 +222,37 @@ model Alert {
 // Cases
 // ─────────────────────────────────────────────────────────────
 model Case {
-  id                  String    @id @default(uuid())
-  organizationId      String    @map("organization_id")
-  caseNumber          String    @unique @map("case_number") @db.VarChar(100)
-  title               String    @db.VarChar(255)
-  description         String?
-  status              String    @default("open") @db.VarChar(50) // open | investigating | closed | archived
-  priority            String    @default("medium") @db.VarChar(50)
-  leadInvestigatorId  String?   @map("lead_investigator_id")
-  createdBy           String?   @map("created_by")
-  closedAt            DateTime? @map("closed_at") @db.Timestamptz()
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
-  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz()
+  id                 String    @id @default(uuid())
+  organizationId     String    @map("organization_id")
+  caseNumber         String    @unique @map("case_number") @db.VarChar(100)
+  title              String    @db.VarChar(255)
+  description        String?
+  status             String    @default("open") @db.VarChar(50) // open | investigating | closed | archived
+  priority           String    @default("medium") @db.VarChar(50)
+  leadInvestigatorId String?   @map("lead_investigator_id")
+  createdBy          String?   @map("created_by")
+  closedAt           DateTime? @map("closed_at") @db.Timestamptz()
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization      Organization @relation(fields: [organizationId], references: [id])
-  leadInvestigator  User?        @relation("CaseLeadInvestigator", fields: [leadInvestigatorId], references: [id])
-  createdByUser     User?        @relation("CasesCreatedBy", fields: [createdBy], references: [id])
-  caseAlerts        CaseAlert[]
-  notes             CaseNote[]
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  leadInvestigator User?        @relation("CaseLeadInvestigator", fields: [leadInvestigatorId], references: [id])
+  createdByUser    User?        @relation("CasesCreatedBy", fields: [createdBy], references: [id])
+  caseAlerts       CaseAlert[]
+  notes            CaseNote[]
 
   @@map("cases")
 }
 
 model CaseAlert {
-  caseId   String   @map("case_id")
-  alertId  String   @map("alert_id")
-  addedAt  DateTime @default(now()) @map("added_at") @db.Timestamptz()
-  addedBy  String?  @map("added_by")
+  caseId  String   @map("case_id")
+  alertId String   @map("alert_id")
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz()
+  addedBy String?  @map("added_by")
 
-  case    Case  @relation(fields: [caseId], references: [id])
-  alert   Alert @relation(fields: [alertId], references: [id])
+  case        Case  @relation(fields: [caseId], references: [id])
+  alert       Alert @relation(fields: [alertId], references: [id])
   addedByUser User? @relation(fields: [addedBy], references: [id])
 
   @@id([caseId, alertId])
@@ -294,6 +295,49 @@ model AuditLog {
   @@index([organizationId], name: "idx_audit_org_date")
   @@index([userId], name: "idx_audit_user")
   @@map("audit_logs")
+}
+
+model MlV2InferenceResult {
+  id               String  @id @default(uuid())
+  detectionEventId String  @unique @map("detection_event_id")
+  jobId            String? @map("job_id")
+  requestId        String? @map("request_id")
+  cameraSessionId  String? @map("camera_session_id")
+  trackId          String? @map("track_id")
+
+  status    String  @db.VarChar(50)
+  errorCode String? @map("error_code") @db.VarChar(50)
+
+  modelVersion   String? @map("model_version") @db.VarChar(50)
+  galleryVersion String? @map("gallery_version") @db.VarChar(100)
+
+  originalValid       Boolean? @map("original_valid")
+  originalCandidateId String?  @map("original_candidate_id")
+  originalScore       Float?   @map("original_score")
+  originalSecondScore Float?   @map("original_second_score")
+  originalMargin      Float?   @map("original_margin")
+
+  reconstructedValid       Boolean? @map("reconstructed_valid")
+  reconstructedCandidateId String?  @map("reconstructed_candidate_id")
+  reconstructedScore       Float?   @map("reconstructed_score")
+  reconstructedSecondScore Float?   @map("reconstructed_second_score")
+  reconstructedMargin      Float?   @map("reconstructed_margin")
+
+  selectedBranch String? @map("selected_branch") @db.VarChar(50)
+  candidateId    String? @map("candidate_id")
+  score          Float?
+  margin         Float?
+  frameDecision  String? @map("frame_decision") @db.VarChar(100)
+
+  serviceProcessingMs          Int?    @map("service_processing_ms")
+  roundTripLatencyMs           Int?    @map("round_trip_latency_ms")
+  requiresOperatorVerification Boolean @default(false) @map("requires_operator_verification")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  detectionEvent DetectionEvent @relation(fields: [detectionEventId], references: [id], onDelete: Cascade)
+
+  @@map("ml_v2_inference_results")
 }
 
 // ─────────────────────────────────────────────────────────────

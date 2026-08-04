@@ -2,6 +2,8 @@ import { Job } from 'bullmq';
 import prisma from '../config/database';
 import { mlService } from '../utils/mlServiceClient';
 import { mlServiceV2Client } from '../utils/mlServiceV2Client';
+import { MlServiceV2Persistence } from '../services/mlServiceV2Persistence';
+import { mlServiceV2Config } from '../config/ml-service-v2.config';
 import { uploadFile, BUCKETS } from '../config/minio';
 import { generateFileKey } from '../utils/helpers';
 import { InferenceJobData } from '../types';
@@ -345,14 +347,15 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
     if (frameBuffer) {
       // Do not block or fail the existing pipeline
       try {
-        await mlServiceV2Client.shadowInfer(
+        const v2StartTime = Date.now();
+        const v2Result = await mlServiceV2Client.shadowInfer(
           job.id || 'unknown-job-id',
           frameBuffer,
           {
             organization_id: orgId,
             camera_id: cameraId,
-            camera_session_id: `legacy-session-${cameraId}`,
-            track_id: `legacy-job-${job.id || 'unknown'}`,
+            camera_session_id: job.data.metadata?.cameraSessionId as string || `legacy-session-${cameraId}`,
+            track_id: job.data.metadata?.trackId as string || `legacy-job-${job.id || 'unknown'}`,
             captured_at: new Date(timestamp).toISOString(),
             frame_number: metadata?.frameNumber ? Number(metadata.frameNumber) : 0,
             bounding_box_json: JSON.stringify(metadata?.boundingBox || [0, 0, 0, 0]),
@@ -361,8 +364,21 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
             quality_score: metadata?.qualityScore ? Number(metadata.qualityScore) : undefined,
           }
         );
-      } catch {
+
+        if (mlServiceV2Config.persistenceEnabled && v2Result) {
+          await MlServiceV2Persistence.upsertV2Telemetry({
+            detectionEventId: detectionEvent.id,
+            jobId: job.id,
+            cameraSessionId: job.data.metadata?.cameraSessionId as string || `legacy-session-${cameraId}`,
+            trackId: job.data.metadata?.trackId as string || `legacy-job-${job.id || 'unknown'}`,
+            roundTripLatencyMs: Date.now() - v2StartTime,
+          }, v2Result, mlServiceV2Config.persistenceFailJob);
+        }
+      } catch (err) {
         // Safe to ignore in shadow mode unless failJob is intentionally enabled in config
+        if (mlServiceV2Config.failJob || mlServiceV2Config.persistenceFailJob) {
+          throw err;
+        }
       }
     }
 

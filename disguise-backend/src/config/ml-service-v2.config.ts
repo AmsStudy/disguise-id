@@ -9,6 +9,8 @@ export const mlServiceV2ConfigSchema = z.object({
   timeoutMs: z.number().positive().default(30000),
   failJob: z.boolean().default(false),
   shadowLogPath: z.string().default('logs/ml-v2-shadow.jsonl'),
+  persistenceEnabled: z.boolean().default(false),
+  persistenceFailJob: z.boolean().default(false),
 });
 
 export type MlServiceV2Config = z.infer<typeof mlServiceV2ConfigSchema>;
@@ -22,6 +24,8 @@ function loadConfig(): MlServiceV2Config {
     timeoutMs: process.env.ML_SERVICE_V2_TIMEOUT_MS ? parseInt(process.env.ML_SERVICE_V2_TIMEOUT_MS, 10) : 30000,
     failJob: process.env.ML_SERVICE_V2_FAIL_JOB === 'true',
     shadowLogPath: process.env.ML_SERVICE_V2_SHADOW_LOG_PATH || 'logs/ml-v2-shadow.jsonl',
+    persistenceEnabled: process.env.ML_SERVICE_V2_PERSISTENCE_ENABLED === 'true',
+    persistenceFailJob: process.env.ML_SERVICE_V2_PERSISTENCE_FAIL_JOB === 'true',
   };
 
   try {

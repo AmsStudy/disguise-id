@@ -6,7 +6,8 @@ import {
   v2InferenceResponseSchema,
   MLServiceV2Error,
   V2ErrorCode,
-  V2ShadowLogEntry
+  V2ShadowLogEntry,
+  V2InferenceResponse
 } from '../types/ml-service-v2.types';
 import { mlServiceV2Logger } from './mlServiceV2Logger';
 
@@ -34,9 +35,9 @@ class MLServiceV2Client {
       detection_score?: number;
       quality_score?: number;
     }
-  ): Promise<void> {
+  ): Promise<V2InferenceResponse | Error | null> {
     if (!mlServiceV2Config.enabled) {
-      return;
+      return null;
     }
 
     const startTime = Date.now();
@@ -107,6 +108,7 @@ class MLServiceV2Client {
       logEntry.score = this.cleanNumber(data.score);
       logEntry.margin = this.cleanNumber(data.margin);
 
+      return data;
     } catch (error) {
       const v2Error = this.handleAxiosError(error);
       logEntry.errorCode = v2Error.code;
@@ -117,6 +119,7 @@ class MLServiceV2Client {
         logger.error(`V2 shadow inference explicitly failed job ${jobId}`, v2Error);
         throw v2Error;
       }
+      return v2Error;
     } finally {
       logEntry.latency_ms = Date.now() - startTime;
       mlServiceV2Logger.log(logEntry);

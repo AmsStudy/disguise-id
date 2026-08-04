@@ -202,7 +202,7 @@ describe('MLServiceV2Client', () => {
   it('should not throw (V1 unaffected) on any error unless failJob is true', async () => {
     mock.onPost('/v2/infer-face').reply(500);
     // Should resolve successfully, logging the failure
-    await expect(mlServiceV2Client.shadowInfer('job1', dummyBuffer, metadata)).resolves.toBeUndefined();
+    await expect(mlServiceV2Client.shadowInfer('job1', dummyBuffer, metadata)).resolves.toBeInstanceOf(MLServiceV2Error);
   });
 
   it('should throw if failJob is true', async () => {
