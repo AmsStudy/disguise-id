@@ -1,6 +1,7 @@
 import { Job } from 'bullmq';
 import prisma from '../config/database';
 import { mlService } from '../utils/mlServiceClient';
+import { mlServiceV2Client } from '../utils/mlServiceV2Client';
 import { uploadFile, BUCKETS } from '../config/minio';
 import { generateFileKey } from '../utils/helpers';
 import { InferenceJobData } from '../types';
@@ -8,7 +9,7 @@ import { logger } from '../config/logger';
 import { emitAlertNew } from '../sockets';
 
 export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Promise<void> => {
-  const { cameraId, orgId, threshold, modelVersion, frameUrl, frameKey, timestamp, metadata } = job.data;
+  const { cameraId, orgId, modelVersion, frameUrl, frameKey, timestamp, metadata } = job.data;
   const startTime = Date.now();
 
   logger.info('Processing inference job', { jobId: job.id, cameraId, orgId });
@@ -31,13 +32,14 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
       processing_ms: 0,
     };
 
+    let frameBuffer: Buffer | null = null;
     try {
       // Attempt to call ML service
       // In a real scenario, you'd fetch the frame buffer from MinIO here
       // and pass it to the ML service. We use a graceful degradation approach.
-      const s3GetResponse = await fetchFrameFromMinio(frameKey);
-      if (s3GetResponse) {
-        mlResult = await mlService.processFrame(s3GetResponse, frameKey.split('/').pop() || 'frame.jpg');
+      frameBuffer = await fetchFrameFromMinio(frameKey);
+      if (frameBuffer) {
+        mlResult = await mlService.processFrame(frameBuffer, frameKey.split('/').pop() || 'frame.jpg');
       }
     } catch (mlError) {
       logger.warn('ML service error, recording event without match', { error: mlError, jobId: job.id });
@@ -338,6 +340,31 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
       where: { id: cameraId },
       data: { lastSeenAt: new Date(), status: 'online' },
     });
+
+    // 7. Phase 3A Shadow Integration: Call ML Service V2 sequentially
+    if (frameBuffer) {
+      // Do not block or fail the existing pipeline
+      try {
+        await mlServiceV2Client.shadowInfer(
+          job.id || 'unknown-job-id',
+          frameBuffer,
+          {
+            organization_id: orgId,
+            camera_id: cameraId,
+            camera_session_id: `legacy-session-${cameraId}`,
+            track_id: `legacy-job-${job.id || 'unknown'}`,
+            captured_at: new Date(timestamp).toISOString(),
+            frame_number: metadata?.frameNumber ? Number(metadata.frameNumber) : 0,
+            bounding_box_json: JSON.stringify(metadata?.boundingBox || [0, 0, 0, 0]),
+            landmarks_json: metadata?.landmarks ? JSON.stringify(metadata.landmarks) : undefined,
+            detection_score: metadata?.confidence ? Number(metadata.confidence) : undefined,
+            quality_score: metadata?.qualityScore ? Number(metadata.qualityScore) : undefined,
+          }
+        );
+      } catch {
+        // Safe to ignore in shadow mode unless failJob is intentionally enabled in config
+      }
+    }
 
     await job.updateProgress(100);
     logger.info('Inference job complete', {
