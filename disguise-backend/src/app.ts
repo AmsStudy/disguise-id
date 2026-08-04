@@ -16,6 +16,7 @@ import { analyticsRouter } from './modules/analytics/analytics.router';
 import { auditRouter } from './modules/audit/audit.router';
 import { settingsRouter } from './modules/settings/settings.router';
 import { iotRouter } from './modules/iot/iot.router';
+import { mlV2Router, detectionEventMlV2Router } from './modules/ml-v2/ml-v2.router';
 
 const app = express();
 
@@ -76,6 +77,8 @@ app.use(`${API_PREFIX}/analytics`, analyticsRouter);
 app.use(`${API_PREFIX}/audit-logs`, auditRouter);
 app.use(`${API_PREFIX}/settings`, settingsRouter);
 app.use(`${API_PREFIX}/iot`, iotRouter);
+app.use(`${API_PREFIX}/ml-v2`, mlV2Router);
+app.use(`${API_PREFIX}/detection-events`, detectionEventMlV2Router);
 
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((_req, res) => {

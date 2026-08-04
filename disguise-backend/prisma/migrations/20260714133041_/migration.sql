@@ -38,32 +38,4 @@ ALTER TABLE "watchlist_photos" DROP COLUMN "embedding";
 -- CreateIndex
 CREATE INDEX "idx_alerts_org_status" ON "alerts"("organization_id");
 
--- CreateIndex
-CREATE INDEX "idx_alerts_assigned" ON "alerts"("assigned_to");
 
--- CreateIndex
-CREATE INDEX "idx_audit_org_date" ON "audit_logs"("organization_id");
-
--- CreateIndex
-CREATE INDEX "idx_audit_user" ON "audit_logs"("user_id");
-
--- CreateIndex
-CREATE INDEX "idx_cctv_org" ON "cctv_sources"("organization_id");
-
--- CreateIndex
-CREATE INDEX "idx_events_org_date" ON "detection_events"("organization_id");
-
--- CreateIndex
-CREATE INDEX "idx_events_source" ON "detection_events"("source_id");
-
--- CreateIndex
-CREATE INDEX "idx_events_match" ON "detection_events"("best_match_id");
-
--- CreateIndex
-CREATE INDEX "idx_users_org" ON "users"("organization_id");
-
--- CreateIndex
-CREATE INDEX "idx_users_email" ON "users"("email");
-
--- CreateIndex
-CREATE INDEX "idx_watchlist_org" ON "watchlist_persons"("organization_id");
