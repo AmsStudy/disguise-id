@@ -9,12 +9,32 @@ import { generateFileKey } from '../utils/helpers';
 import { InferenceJobData } from '../types';
 import { logger } from '../config/logger';
 import { emitAlertNew } from '../sockets';
+import { mlExecutionConfig } from '../config/ml-execution.config';
+
+interface V1InferenceOutcome {
+  attempted: boolean;
+  faceDetected: boolean;
+  embedding: number[] | null;
+  processingMs: number;
+  confidence: number | null;
+  faceCropBase64?: string;
+  reason?: string;
+}
 
 export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Promise<void> => {
   const { cameraId, orgId, modelVersion, frameUrl, frameKey, timestamp, metadata } = job.data;
   const startTime = Date.now();
+  const v1Attempted = mlExecutionConfig.mode === 'v1' || mlExecutionConfig.mode === 'dual';
+  const v2Attempted = mlExecutionConfig.mode === 'dual' || mlExecutionConfig.mode === 'v2_shadow';
 
-  logger.info('Processing inference job', { jobId: job.id, cameraId, orgId });
+  logger.info('Processing inference job', {
+    jobId: job.id,
+    cameraId,
+    orgId,
+    mlExecutionMode: mlExecutionConfig.mode,
+    v1Attempted,
+    v2Attempted
+  });
 
   try {
     // Update job progress
@@ -27,24 +47,33 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
     // 2. Call ML service to process the frame
     // In production, the ML service fetches directly from MinIO or we pass the buffer
     // Here we simulate by calling the ML service with the frame URL
-    let mlResult: { embedding: number[] | null; face_detected: boolean; face_crop_base64?: string; confidence: number; processing_ms: number } = {
+    let v1Outcome: V1InferenceOutcome = {
+      attempted: false,
+      faceDetected: false,
       embedding: null,
-      face_detected: false,
-      confidence: 0,
-      processing_ms: 0,
+      processingMs: 0,
+      confidence: null,
+      reason: 'SKIPPED_BY_EXECUTION_MODE'
     };
 
-    let frameBuffer: Buffer | null = null;
-    try {
-      // Attempt to call ML service
-      // In a real scenario, you'd fetch the frame buffer from MinIO here
-      // and pass it to the ML service. We use a graceful degradation approach.
-      frameBuffer = await fetchFrameFromMinio(frameKey);
-      if (frameBuffer) {
-        mlResult = await mlService.processFrame(frameBuffer, frameKey.split('/').pop() || 'frame.jpg');
+    let frameBuffer: Buffer | null = await fetchFrameFromMinio(frameKey);
+
+    if (v1Attempted && frameBuffer) {
+      v1Outcome.attempted = true;
+      try {
+        const mlResult = await mlService.processFrame(frameBuffer, frameKey.split('/').pop() || 'frame.jpg');
+        v1Outcome = {
+          attempted: true,
+          faceDetected: mlResult.face_detected,
+          embedding: mlResult.embedding,
+          processingMs: mlResult.processing_ms,
+          confidence: mlResult.confidence,
+          faceCropBase64: mlResult.face_crop_base64,
+        };
+      } catch (mlError) {
+        v1Outcome.reason = 'NETWORK_OR_INTERNAL_ERROR';
+        logger.warn('ML service error, recording event without match', { error: mlError, jobId: job.id });
       }
-    } catch (mlError) {
-      logger.warn('ML service error, recording event without match', { error: mlError, jobId: job.id });
     }
 
     await job.updateProgress(50);
@@ -58,11 +87,11 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
     let topCandidates: Array<{ id: string; name: string; distance: number }> = [];
 
     // 3. If face detected, search watchlist
-    if (mlResult.face_detected && mlResult.embedding) {
+    if (v1Outcome.faceDetected && v1Outcome.embedding) {
       // Upload face crop if returned by ML service, otherwise inherit from uploaded capture frame metadata
-      if (mlResult.face_crop_base64) {
+      if (v1Outcome.faceCropBase64) {
         try {
-          const cropBuffer = Buffer.from(mlResult.face_crop_base64, 'base64');
+          const cropBuffer = Buffer.from(v1Outcome.faceCropBase64, 'base64');
           const cropKey = generateFileKey('faces', 'crop.jpg');
           faceCropUrl = await uploadFile(BUCKETS.FACES, cropKey, cropBuffer, 'image/jpeg');
         } catch (uploadErr) {
@@ -73,7 +102,7 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
       }
 
       // 4. Vector similarity search via raw SQL (pgvector - Euclidean L2)
-      const embeddingStr = `[${mlResult.embedding.join(',')}]`;
+      const embeddingStr = `[${v1Outcome.embedding.join(',')}]`;
       const candidates = await prisma.$queryRawUnsafe<Array<{
         id: string;
         full_name: string;
@@ -146,7 +175,7 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
     const sceneFrameUrl = (metadata?.frameThumbUrl as string) || frameUrl;
     const finalFaceCropUrl = faceCropUrl || (metadata?.faceCropUrl as string) || frameUrl;
 
-    const processingMs = Date.now() - startTime + mlResult.processing_ms;
+    const processingMs = Date.now() - startTime + v1Outcome.processingMs;
     const detectionEvent = await prisma.detectionEvent.create({
       data: {
         organizationId: orgId,
@@ -158,16 +187,16 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
         isMatch,
         processingMs,
         modelVersion,
-        metadata: { ...(metadata || {}), confidence: mlResult.confidence, tier, margin_pct: marginPct, top_candidates: topCandidates },
+        metadata: { ...(metadata || {}), confidence: v1Outcome.confidence, tier, margin_pct: marginPct, top_candidates: topCandidates },
         detectedAt: new Date(timestamp),
       },
     });
 
     // Store embedding in detection event via raw SQL
-    if (mlResult.embedding) {
+    if (v1Outcome.embedding) {
       await prisma.$executeRawUnsafe(
         `UPDATE detection_events SET embedding = $1::vector WHERE id = $2`,
-        `[${mlResult.embedding.join(',')}]`,
+        `[${v1Outcome.embedding.join(',')}]`,
         detectionEvent.id
       );
     }
@@ -344,7 +373,7 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
     });
 
     // 7. Phase 3A Shadow Integration: Call ML Service V2 sequentially
-    if (frameBuffer) {
+    if (v2Attempted && frameBuffer) {
       // Do not block or fail the existing pipeline
       try {
         const v2StartTime = Date.now();
@@ -387,7 +416,7 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
       jobId: job.id,
       isMatch,
       processingMs,
-      faceDetected: mlResult.face_detected,
+      faceDetected: v1Outcome.faceDetected,
     });
   } catch (error) {
     logger.error('Inference worker error', { jobId: job.id, error });

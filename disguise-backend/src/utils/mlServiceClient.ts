@@ -7,14 +7,14 @@ const ML_SERVICE_API_KEY = process.env.ML_SERVICE_API_KEY || 'internal-api-key';
 export interface EmbeddingResult {
   embedding: number[];
   face_detected: boolean;
-  confidence: number;
+  confidence: number | null;
 }
 
 export interface FrameProcessResult {
   embedding: number[] | null;
   face_detected: boolean;
   face_crop_base64?: string;
-  confidence: number;
+  confidence: number | null;
   processing_ms: number;
 }
 
@@ -28,7 +28,7 @@ export class MlServiceClient {
   });
 
   /**
-   * Get 512-dim face embedding from an image
+   * Get 128-dim face embedding from an image
    * @param imageBuffer Raw image buffer
    * @param filename Original filename (for content type detection)
    */
@@ -42,7 +42,11 @@ export class MlServiceClient {
         headers: form.getHeaders(),
       });
 
-      return response.data;
+      const result = response.data;
+      if (result.embedding && result.embedding.length !== 128) {
+        throw new Error(`Invalid embedding dimension from ML service: expected 128, got ${result.embedding.length}`);
+      }
+      return result;
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         logger.error('ML service error (embed)', {
@@ -71,7 +75,11 @@ export class MlServiceClient {
         headers: form.getHeaders(),
       });
 
-      return response.data;
+      const result = response.data;
+      if (result.embedding && result.embedding.length !== 128) {
+        throw new Error(`Invalid embedding dimension from ML service: expected 128, got ${result.embedding.length}`);
+      }
+      return result;
     } catch (error: unknown) {
       if (axios.isAxiosError(error)) {
         logger.error('ML service error (process-frame)', {
@@ -83,7 +91,7 @@ export class MlServiceClient {
           return {
             embedding: null,
             face_detected: false,
-            confidence: 0,
+            confidence: null,
             processing_ms: 0,
           };
         }

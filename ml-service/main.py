@@ -43,8 +43,9 @@ import numpy as np
 from io import BytesIO
 from PIL import Image
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
+import time
 import uvicorn
 import requests
 
@@ -53,7 +54,7 @@ import onnx2torch
 
 app = FastAPI(title="ML Service - Disguise ID (VAE)")
 
-IMAGE_SIZE = (224, 224, 3)   
+IMAGE_SIZE = (224, 224, 3)
 Z_IDENTITY_DIM = 128
 Z_ATTRIBUTE_DIM = 64
 
@@ -62,9 +63,9 @@ MODEL_CHECKPOINT_PATH = os.path.join("models", "disguise_id_encoder_full_model.p
 THRESHOLD_TINGGI = 3.5
 THRESHOLD_SEDANG = 4.5
 MAX_DISTANCE_FOR_ZERO_PERCENT = 8.0
-MARGIN_DOWNGRADE_THRESHOLD = 15.0  
+MARGIN_DOWNGRADE_THRESHOLD = 15.0
 
-GALLERY_FILE = "dpo_gallery.json"  
+GALLERY_FILE = "dpo_gallery.json"
 TOP_K = 3
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -74,7 +75,7 @@ vae_model = None
 
 try:
     print(f"[INFO] Memuat model dari {MODEL_CHECKPOINT_PATH}...")
-    vae_model = torch.load(MODEL_CHECKPOINT_PATH, map_location=DEVICE)
+    vae_model = torch.load(MODEL_CHECKPOINT_PATH, map_location=DEVICE, weights_only=False)
     vae_model.eval()
     print("[INFO] Model berhasil dimuat dan siap digunakan!")
 except Exception as e:
@@ -86,7 +87,7 @@ def preprocess_image(image_bytes: bytes) -> torch.Tensor:
     Normalisasi ke rentang [0, 1] dan ubah menjadi tensor PyTorch (1, 224, 224, 3).
     """
     image = Image.open(BytesIO(image_bytes)).convert("RGB")
-    image = image.resize((IMAGE_SIZE[1], IMAGE_SIZE[0]))  
+    image = image.resize((IMAGE_SIZE[1], IMAGE_SIZE[0]))
 
     img_array = np.array(image, dtype=np.float32) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
@@ -98,7 +99,7 @@ def compute_embedding(image_bytes: bytes) -> np.ndarray:
     input_tensor = preprocess_image(image_bytes)
     with torch.no_grad():
         outputs = vae_model(input_tensor)
-        return outputs.cpu().numpy()[0]  
+        return outputs.cpu().numpy()[0]
 
 def load_gallery() -> dict:
     if os.path.exists(GALLERY_FILE):
@@ -190,7 +191,7 @@ async def enroll_dpo(
         "kasus": kasus,
         "embedding": embedding.tolist(),
     }
-    save_gallery(gallery)  
+    save_gallery(gallery)
 
     return EnrollResponse(success=True, dpo_id=dpo_id, message=f"DPO '{nama}' berhasil didaftarkan.")
 
@@ -233,7 +234,7 @@ async def detect(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Gagal memproses gambar: {e}")
 
-    
+
     results = []
     for dpo_id, data in gallery.items():
         gallery_embedding = np.array(data["embedding"])
@@ -252,8 +253,8 @@ async def detect(
     best = top_results[0]
     tier_asli = classify_confidence_tier(best["jarak"])
 
-    
-    
+
+
     if len(results) >= 2:
         second = results[1]
         margin = max(0.0, (second["jarak"] - best["jarak"]) / second["jarak"]) * 100
@@ -282,39 +283,65 @@ async def detect(
     )
 
 
-@app.post("/embed")
-async def embed(image: UploadFile = File(...)):
-    """Untuk enrollment dari Express backend"""
-    import time
-    t_start = time.time()
+class EmbeddingResponse(BaseModel):
+    face_detected: bool
+    embedding: Optional[List[float]] = Field(None, max_length=128, min_length=128)
+    confidence: Optional[float] = None
+
+class FrameProcessResponse(EmbeddingResponse):
+    processing_ms: float
+
+@app.post("/embed", response_model=EmbeddingResponse)
+async def embed_endpoint(image: UploadFile = File(...)):
+    """
+    V1 Compatibility Endpoint: Extracts 128-dim embedding from a face crop.
+    This endpoint assumes the input is a valid face crop.
+    """
+    if vae_model is None:
+        raise HTTPException(status_code=503, detail="Model is not ready")
+
     try:
         image_bytes = await image.read()
         embedding = compute_embedding(image_bytes)
-        return {
-            "embedding": embedding.tolist(),
-            "face_detected": True,
-            "confidence": 1.0
-        }
+        return EmbeddingResponse(
+            face_detected=True, # Implicitly true since input is assumed to be a face crop
+            embedding=embedding.tolist(),
+            confidence=None # VAE model does not produce a detection confidence
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return EmbeddingResponse(
+            face_detected=False,
+            embedding=None,
+            confidence=None
+        )
 
-@app.post("/process-frame")
-async def process_frame(frame: UploadFile = File(...)):
-    """Untuk deteksi CCTV dari Express backend"""
-    import time
-    t_start = time.time()
+@app.post("/process-frame", response_model=FrameProcessResponse)
+async def process_frame_endpoint(frame: UploadFile = File(...)):
+    """
+    V1 Compatibility Endpoint: Processes a face crop and returns the embedding.
+    """
+    if vae_model is None:
+        raise HTTPException(status_code=503, detail="Model is not ready")
+
+    start_time = time.time()
     try:
         image_bytes = await frame.read()
         embedding = compute_embedding(image_bytes)
-        ms = int((time.time() - t_start) * 1000)
-        return {
-            "embedding": embedding.tolist(),
-            "face_detected": True,
-            "confidence": 1.0,
-            "processing_ms": ms
-        }
+        processing_ms = (time.time() - start_time) * 1000
+        return FrameProcessResponse(
+            face_detected=True,
+            embedding=embedding.tolist(),
+            confidence=None,
+            processing_ms=processing_ms
+        )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        processing_ms = (time.time() - start_time) * 1000
+        return FrameProcessResponse(
+            face_detected=False,
+            embedding=None,
+            confidence=None,
+            processing_ms=processing_ms
+        )
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
