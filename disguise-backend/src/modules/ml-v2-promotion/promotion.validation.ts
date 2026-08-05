@@ -7,7 +7,7 @@ export const promotionQueueQuerySchema = z.object({
   reviewerId: z.string().uuid().optional(),
   reviewedFrom: z.string().datetime().optional(),
   reviewedTo: z.string().datetime().optional(),
-  frameDecision: z.enum(['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_CANDIDATE']).optional(),
+  frameDecision: z.enum(['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_MATCH']).optional(),
   selectedBranch: z.string().optional(),
 }).strict().refine((data) => {
   if (data.reviewedFrom && data.reviewedTo) {

@@ -119,8 +119,8 @@ describe('MlServiceV2Persistence', () => {
       expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('SUCCESS', 'HIGH_PRIORITY_CANDIDATE')).toBe(true);
     });
 
-    it('should return true for POSSIBLE_CANDIDATE', () => {
-      expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('SUCCESS', 'POSSIBLE_CANDIDATE')).toBe(true);
+    it('should return true for POSSIBLE_MATCH', () => {
+      expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('SUCCESS', 'POSSIBLE_MATCH')).toBe(true);
     });
 
     it('should return false for UNKNOWN', () => {
@@ -129,7 +129,7 @@ describe('MlServiceV2Persistence', () => {
 
     it('should return false for FAILED/V2_AUTH_ERROR status', () => {
       expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('FAILED', 'HIGH_PRIORITY_CANDIDATE')).toBe(false);
-      expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('V2_AUTH_ERROR', 'POSSIBLE_CANDIDATE')).toBe(false);
+      expect(MlServiceV2Persistence.requiresOperatorVerificationForDecision('V2_AUTH_ERROR', 'POSSIBLE_MATCH')).toBe(false);
     });
 
     it('should return false for missing decision', () => {

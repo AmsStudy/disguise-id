@@ -10,15 +10,17 @@ export class MlV2Service {
     const {
       page,
       pageSize,
-      startDate,
-      endDate,
+      createdFrom,
+      createdTo,
       status,
+      errorCode,
       frameDecision,
-      cameraId,
-      minConfidence,
-      maxConfidence,
-      hasNearestCandidate,
-      hasWatchlistHit,
+      selectedBranch,
+      candidateId,
+      cameraSessionId,
+      trackId,
+      modelVersion,
+      galleryVersion,
       requiresOperatorVerification,
     } = query;
 
@@ -28,49 +30,43 @@ export class MlV2Service {
       },
     };
 
-    if (cameraId) {
-      where.detectionEvent = {
-        ...where.detectionEvent,
-        sourceId: cameraId,
-      } as Prisma.DetectionEventWhereInput;
-    }
-
-    if (startDate || endDate) {
+    if (createdFrom || createdTo) {
       where.createdAt = {};
-      if (startDate) (where.createdAt as any).gte = new Date(startDate);
-      if (endDate) (where.createdAt as any).lte = new Date(endDate);
+      if (createdFrom) (where.createdAt as any).gte = new Date(createdFrom);
+      if (createdTo) (where.createdAt as any).lte = new Date(createdTo);
     }
 
     if (status) {
       where.status = status;
     }
-
+    if (errorCode) {
+      where.errorCode = errorCode;
+    }
     if (frameDecision) {
       where.frameDecision = frameDecision;
     }
-
-    if (minConfidence !== undefined || maxConfidence !== undefined) {
-      where.score = {};
-      if (minConfidence !== undefined) (where.score as any).gte = minConfidence;
-      if (maxConfidence !== undefined) (where.score as any).lte = maxConfidence;
-    }
-
-    if (hasNearestCandidate !== undefined) {
-      if (hasNearestCandidate) {
-        where.candidateId = { not: null };
+    if (selectedBranch) {
+      if (selectedBranch === 'NONE') {
+        where.selectedBranch = null;
       } else {
-        where.candidateId = null;
+        where.selectedBranch = selectedBranch;
       }
     }
-
-    if (hasWatchlistHit !== undefined) {
-      if (hasWatchlistHit) {
-        where.status = { in: ['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_CANDIDATE'] };
-      } else {
-        where.status = { notIn: ['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_CANDIDATE'] };
-      }
+    if (candidateId) {
+      where.candidateId = candidateId;
     }
-
+    if (cameraSessionId) {
+      where.cameraSessionId = cameraSessionId;
+    }
+    if (trackId) {
+      where.trackId = trackId;
+    }
+    if (modelVersion) {
+      where.modelVersion = modelVersion;
+    }
+    if (galleryVersion) {
+      where.galleryVersion = galleryVersion;
+    }
     if (requiresOperatorVerification !== undefined) {
       where.requiresOperatorVerification = requiresOperatorVerification;
     }
@@ -115,9 +111,9 @@ export class MlV2Service {
    */
   async getTelemetryStats(orgId: string, query: MlV2ListQuery) {
     const {
-      startDate,
-      endDate,
-      cameraId,
+      createdFrom,
+      createdTo,
+      cameraSessionId,
     } = query;
 
     const where: Prisma.MlV2InferenceResultWhereInput = {
@@ -126,40 +122,42 @@ export class MlV2Service {
       },
     };
 
-    if (cameraId) {
-      where.detectionEvent = {
-        ...where.detectionEvent,
-        sourceId: cameraId,
-      } as Prisma.DetectionEventWhereInput;
+    if (cameraSessionId) {
+      where.cameraSessionId = cameraSessionId;
     }
 
-    if (startDate || endDate) {
+    if (createdFrom || createdTo) {
       where.createdAt = {};
-      if (startDate) (where.createdAt as any).gte = new Date(startDate);
-      if (endDate) (where.createdAt as any).lte = new Date(endDate);
+      if (createdFrom) (where.createdAt as any).gte = new Date(createdFrom);
+      if (createdTo) (where.createdAt as any).lte = new Date(createdTo);
     }
 
     const [
       totalCount,
+      successCount,
+      failedCount,
       highPriorityCount,
       possibleCount,
       unknownCount,
-      failedCount,
     ] = await prisma.$transaction([
       prisma.mlV2InferenceResult.count({ where }),
-      prisma.mlV2InferenceResult.count({ where: { ...where, status: 'HIGH_PRIORITY_CANDIDATE' } }),
-      prisma.mlV2InferenceResult.count({ where: { ...where, status: 'POSSIBLE_CANDIDATE' } }),
-      prisma.mlV2InferenceResult.count({ where: { ...where, status: 'UNKNOWN' } }),
+      prisma.mlV2InferenceResult.count({ where: { ...where, status: 'SUCCESS' } }),
       prisma.mlV2InferenceResult.count({ where: { ...where, status: 'FAILED' } }),
+      prisma.mlV2InferenceResult.count({ where: { ...where, frameDecision: 'HIGH_PRIORITY_CANDIDATE' } }),
+      prisma.mlV2InferenceResult.count({ where: { ...where, frameDecision: 'POSSIBLE_MATCH' } }),
+      prisma.mlV2InferenceResult.count({ where: { ...where, frameDecision: 'UNKNOWN' } }),
     ]);
 
     return {
       total: totalCount,
       byStatus: {
-        HIGH_PRIORITY_CANDIDATE: highPriorityCount,
-        POSSIBLE_CANDIDATE: possibleCount,
-        UNKNOWN: unknownCount,
+        SUCCESS: successCount,
         FAILED: failedCount,
+      },
+      byFrameDecision: {
+        HIGH_PRIORITY_CANDIDATE: highPriorityCount,
+        POSSIBLE_MATCH: possibleCount,
+        UNKNOWN: unknownCount,
       }
     };
   }
@@ -168,7 +166,6 @@ export class MlV2Service {
    * Get a specific MlV2InferenceResult by DetectionEvent ID
    */
   async getByDetectionEventId(orgId: string, detectionEventId: string) {
-    // Ensure the detection event belongs to the organization
     const event = await prisma.detectionEvent.findUnique({
       where: { id: detectionEventId },
       select: { organizationId: true },
@@ -183,7 +180,7 @@ export class MlV2Service {
     });
 
     if (!telemetry) {
-      return { data: null }; // Detection event exists, but no V2 telemetry yet
+      return { data: null };
     }
 
     return { data: telemetry };
@@ -206,8 +203,6 @@ export class MlV2Service {
       return { error: 'NOT_FOUND', message: 'Inference result not found or inaccessible' };
     }
 
-    // Omit the detectionEvent relation from the return to match typical DTO, or keep it if needed.
-    // We'll just return the telemetry object.
     const { detectionEvent, ...result } = telemetry;
     return { data: result };
   }

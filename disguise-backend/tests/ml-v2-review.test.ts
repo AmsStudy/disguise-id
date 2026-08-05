@@ -116,7 +116,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
         detectionEventId: ev3.id,
         status: 'SUCCESS',
         requiresOperatorVerification: true,
-        frameDecision: 'POSSIBLE_CANDIDATE',
+        frameDecision: 'POSSIBLE_MATCH',
         candidateId: 'DID005',
         score: 0.6,
       }
@@ -240,7 +240,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
           detectionEventId: tempEv.id,
           status: 'SUCCESS',
           requiresOperatorVerification: true,
-          frameDecision: 'POSSIBLE_CANDIDATE',
+          frameDecision: 'POSSIBLE_MATCH',
           candidateId: 'DID100',
           score: 0.7,
         }
@@ -289,7 +289,7 @@ describe('ML V2 Review Workflow API (Phase 3D)', () => {
       // Create a fresh pending review for this test
       const tempEv = await prisma.detectionEvent.create({ data: { organizationId: ORG_ID, sourceId } });
       const tempInf = await prisma.mlV2InferenceResult.create({
-        data: { detectionEventId: tempEv.id, status: 'SUCCESS', requiresOperatorVerification: true, frameDecision: 'POSSIBLE_CANDIDATE' }
+        data: { detectionEventId: tempEv.id, status: 'SUCCESS', requiresOperatorVerification: true, frameDecision: 'POSSIBLE_MATCH' }
       });
       const reviewRes = await request(app).post(`/api/v1/ml-v2/inference-results/${tempInf.id}/review`).set('Authorization', `Bearer ${operatorToken}`);
       const rId = reviewRes.body.data.id;

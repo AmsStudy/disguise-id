@@ -15,7 +15,7 @@ export class MlServiceV2Persistence {
     if (status !== 'SUCCESS') {
       return false;
     }
-    if (frameDecision === 'HIGH_PRIORITY_CANDIDATE' || frameDecision === 'POSSIBLE_CANDIDATE') {
+    if (frameDecision === 'HIGH_PRIORITY_CANDIDATE' || frameDecision === 'POSSIBLE_MATCH') {
       return true;
     }
     return false;

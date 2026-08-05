@@ -19,15 +19,17 @@ Fetch a paginated list of ML V2 inference results with optional filtering.
 |-----------|------|---------|-------------|
 | `page` | number | 1 | Page number (min 1) |
 | `pageSize` | number | 20 | Items per page (min 1, max 100) |
-| `startDate` | string | | ISO 8601 datetime (e.g. `2026-08-04T00:00:00Z`) |
-| `endDate` | string | | ISO 8601 datetime |
-| `status` | enum | | Filter by exact status (`HIGH_PRIORITY_CANDIDATE`, `POSSIBLE_CANDIDATE`, `UNKNOWN`, `FAILED`) |
-| `frameDecision` | enum | | Filter by `FACE_DETECTED` or `NO_FACE_DETECTED` |
-| `cameraId` | string | | Filter by the specific camera ID |
-| `minConfidence`| number | | Minimum score (0.0 to 1.0) |
-| `maxConfidence`| number | | Maximum score (0.0 to 1.0) |
-| `hasNearestCandidate`| boolean| | If `true`, returns only records where a candidate ID exists. |
-| `hasWatchlistHit`| boolean | | If `true`, returns records that hit the watchlist (`HIGH_PRIORITY_CANDIDATE` or `POSSIBLE_CANDIDATE`). |
+| `createdFrom` | string | | ISO 8601 datetime (e.g. `2026-08-04T00:00:00Z`) |
+| `createdTo` | string | | ISO 8601 datetime |
+| `status` | enum | | Filter by exact status (`SUCCESS`, `FAILED`) |
+| `errorCode` | string | | Filter by error code |
+| `frameDecision` | enum | | Filter by `HIGH_PRIORITY_CANDIDATE`, `POSSIBLE_MATCH`, or `UNKNOWN` |
+| `selectedBranch` | enum | | Filter by `ORIGINAL`, `RECONSTRUCTED`, or `NONE` |
+| `candidateId` | string | | Filter by candidate ID |
+| `cameraSessionId`| string | | Filter by camera session ID |
+| `trackId` | string | | Filter by track ID |
+| `modelVersion` | string | | Filter by model version |
+| `galleryVersion` | string | | Filter by gallery version |
 | `requiresOperatorVerification`| boolean | | Filter by records that require human verification. |
 
 #### Response
@@ -67,7 +69,7 @@ Fetch a paginated list of ML V2 inference results with optional filtering.
 Retrieve aggregated statistics for ML V2 telemetry.
 
 #### Query Parameters
-Accepts `startDate`, `endDate`, and `cameraId`.
+Accepts the same filtering parameters as the list endpoint (e.g. `createdFrom`, `createdTo`, `cameraSessionId`).
 
 #### Response
 
@@ -77,10 +79,13 @@ Accepts `startDate`, `endDate`, and `cameraId`.
   "data": {
     "total": 1000,
     "byStatus": {
-      "HIGH_PRIORITY_CANDIDATE": 10,
-      "POSSIBLE_CANDIDATE": 20,
-      "UNKNOWN": 900,
+      "SUCCESS": 930,
       "FAILED": 70
+    },
+    "byFrameDecision": {
+      "HIGH_PRIORITY_CANDIDATE": 10,
+      "POSSIBLE_MATCH": 20,
+      "UNKNOWN": 900
     }
   }
 }

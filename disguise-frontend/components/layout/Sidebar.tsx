@@ -19,6 +19,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: faGauge },
   { href: '/dashboard/monitor', label: 'Live Monitor', icon: faVideo },
   { href: '/dashboard/alerts', label: 'Alerts', icon: faBell, badge: true },
+  { href: '/dashboard/ml-v2', label: 'ML V2', icon: faChartBar },
   { href: '/dashboard/watchlist', label: 'Watchlist', icon: faUsers },
   { href: '/dashboard/cases', label: 'Cases', icon: faBriefcase },
   { href: '/dashboard/analytics', label: 'Analytics', icon: faChartBar },

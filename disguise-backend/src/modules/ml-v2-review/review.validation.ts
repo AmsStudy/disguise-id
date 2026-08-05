@@ -4,7 +4,7 @@ import { MlV2ReviewDecision, MlV2ReviewStatus } from '@prisma/client';
 export const reviewQueueQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  frameDecision: z.enum(['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_CANDIDATE']).optional(),
+  frameDecision: z.enum(['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_MATCH']).optional(),
   candidateId: z.string().trim().optional(),
   selectedBranch: z.enum(['arcface', 'adaface']).optional(),
   createdFrom: z.string().datetime().optional(),

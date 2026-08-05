@@ -22,7 +22,7 @@ export class MlV2ReviewService {
     // Base conditions for eligibility:
     // - status SUCCESS
     // - requiresOperatorVerification true
-    // - frameDecision HIGH_PRIORITY_CANDIDATE or POSSIBLE_CANDIDATE
+    // - frameDecision HIGH_PRIORITY_CANDIDATE or POSSIBLE_MATCH
     // - belongs to org
     const where: Prisma.MlV2InferenceResultWhereInput = {
       detectionEvent: {
@@ -30,7 +30,7 @@ export class MlV2ReviewService {
       },
       status: 'SUCCESS',
       requiresOperatorVerification: true,
-      frameDecision: { in: ['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_CANDIDATE'] },
+      frameDecision: { in: ['HIGH_PRIORITY_CANDIDATE', 'POSSIBLE_MATCH'] },
     };
 
     if (frameDecision) where.frameDecision = frameDecision;
@@ -264,7 +264,7 @@ export class MlV2ReviewService {
     if (
       inferenceResult.status === 'FAILED' ||
       !inferenceResult.requiresOperatorVerification ||
-      (inferenceResult.frameDecision !== 'HIGH_PRIORITY_CANDIDATE' && inferenceResult.frameDecision !== 'POSSIBLE_CANDIDATE')
+      (inferenceResult.frameDecision !== 'HIGH_PRIORITY_CANDIDATE' && inferenceResult.frameDecision !== 'POSSIBLE_MATCH')
     ) {
       return { error: 'BAD_REQUEST', message: 'Inference result is not eligible for review' };
     }
