@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { MlV2ReviewNavigation } from '../../../components/ml-v2-review/MlV2ReviewNavigation';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../../store/authStore';
@@ -64,6 +65,8 @@ export default function MlV2DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <MlV2ReviewNavigation />
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">ML V2 Observability</h1>
