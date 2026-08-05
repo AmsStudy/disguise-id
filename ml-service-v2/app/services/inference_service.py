@@ -41,6 +41,10 @@ class InferenceService:
     def process_frame(self, image_rgb: np.ndarray, metadata: dict) -> InferenceResponse:
         start_time = time.perf_counter()
         
+        organization_id = metadata.get("organization_id", "").strip()
+        if not organization_id:
+            raise ValueError("organization_id is required for inference")
+
         orig_res = BranchResult(valid=False)
         recon_res = BranchResult(valid=False)
 
@@ -54,7 +58,7 @@ class InferenceService:
         try:
             orig_embed, orig_meta = self.arcface.detect_and_extract(face_crop_rgb)
             if orig_embed is not None:
-                ranked = self.gallery.rank_identities(orig_embed, settings.top_k)
+                ranked = self.gallery.rank_identities(organization_id, orig_embed, settings.top_k)
                 if ranked:
                     orig_res.valid = True
                     orig_res.candidate_id = ranked[0]["identity_id"]
@@ -73,7 +77,7 @@ class InferenceService:
             
             recon_embed, recon_meta = self.arcface.detect_and_extract(recon_rgb)
             if recon_embed is not None:
-                recon_ranked = self.gallery.rank_identities(recon_embed, settings.top_k)
+                recon_ranked = self.gallery.rank_identities(organization_id, recon_embed, settings.top_k)
                 if recon_ranked:
                     recon_res.valid = True
                     recon_res.candidate_id = recon_ranked[0]["identity_id"]

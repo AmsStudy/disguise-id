@@ -12,6 +12,28 @@ enum MlV2ReviewDecision {
   INCONCLUSIVE
 }
 
+enum MlV2GalleryCandidateStatus {
+  ACTIVE
+  INACTIVE
+  TOMBSTONED
+}
+
+enum MlV2GalleryVersionStatus {
+  BUILDING
+  VALIDATED
+  READY
+  ACTIVE
+  FAILED
+  RETIRED
+}
+
+enum MlV2CandidateMappingStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  REVOKED
+}
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -47,6 +69,9 @@ model Organization {
   mlV2OperatorReviews    MlV2OperatorReview[]
   mlV2ReviewedPromotions MlV2ReviewedPromotion[]
   mlV2ReviewedAlerts     MlV2ReviewedAlert[]
+  mlV2GalleryCandidates  MlV2GalleryCandidate[]
+  mlV2GalleryVersions    MlV2GalleryVersion[]
+  mlV2CandidateMappings  MlV2CandidateMapping[]
 
   @@map("organizations")
 }
@@ -68,19 +93,24 @@ model User {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization              Organization            @relation(fields: [organizationId], references: [id])
-  watchlistPersons          WatchlistPerson[]       @relation("AddedByUser")
-  watchlistPhotos           WatchlistPhoto[]        @relation("UploadedByUser")
-  assignedAlerts            Alert[]                 @relation("AssignedAlerts")
-  reviewedAlerts            Alert[]                 @relation("ReviewedAlerts")
-  caseLeads                 Case[]                  @relation("CaseLeadInvestigator")
-  casesCreated              Case[]                  @relation("CasesCreatedBy")
-  caseAlertsAdded           CaseAlert[]
-  caseNotes                 CaseNote[]
-  auditLogs                 AuditLog[]
-  mlV2OperatorReviews       MlV2OperatorReview[]
-  mlV2PromotionsCreated     MlV2ReviewedPromotion[]
-  mlV2ReviewedAlertsCreated MlV2ReviewedAlert[]     @relation("MlV2ReviewedAlertCreator")
+  organization               Organization            @relation(fields: [organizationId], references: [id])
+  watchlistPersons           WatchlistPerson[]       @relation("AddedByUser")
+  watchlistPhotos            WatchlistPhoto[]        @relation("UploadedByUser")
+  assignedAlerts             Alert[]                 @relation("AssignedAlerts")
+  reviewedAlerts             Alert[]                 @relation("ReviewedAlerts")
+  caseLeads                  Case[]                  @relation("CaseLeadInvestigator")
+  casesCreated               Case[]                  @relation("CasesCreatedBy")
+  caseAlertsAdded            CaseAlert[]
+  caseNotes                  CaseNote[]
+  auditLogs                  AuditLog[]
+  mlV2OperatorReviews        MlV2OperatorReview[]
+  mlV2PromotionsCreated      MlV2ReviewedPromotion[]
+  mlV2ReviewedAlertsCreated  MlV2ReviewedAlert[]     @relation("MlV2ReviewedAlertCreator")
+  mlV2GalleryVersionsCreated MlV2GalleryVersion[]    @relation("GalleryVersionCreator")
+  mlV2MappingsProposed       MlV2CandidateMapping[]  @relation("MappingProposer")
+  mlV2MappingsApproved       MlV2CandidateMapping[]  @relation("MappingApprover")
+  mlV2MappingsRejected       MlV2CandidateMapping[]  @relation("MappingRejector")
+  mlV2MappingsRevoked        MlV2CandidateMapping[]  @relation("MappingRevoker")
 
   @@index([organizationId], name: "idx_users_org")
   @@index([email], name: "idx_users_email")
@@ -142,11 +172,12 @@ model WatchlistPerson {
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
 
-  organization    Organization     @relation(fields: [organizationId], references: [id])
-  addedByUser     User?            @relation("AddedByUser", fields: [addedBy], references: [id])
-  photos          WatchlistPhoto[]
-  detectionEvents DetectionEvent[] @relation("BestMatchPerson")
-  alerts          Alert[]
+  organization         Organization           @relation(fields: [organizationId], references: [id])
+  addedByUser          User?                  @relation("AddedByUser", fields: [addedBy], references: [id])
+  photos               WatchlistPhoto[]
+  detectionEvents      DetectionEvent[]       @relation("BestMatchPerson")
+  alerts               Alert[]
+  MlV2CandidateMapping MlV2CandidateMapping[]
 
   @@index([organizationId], name: "idx_watchlist_org")
   @@map("watchlist_persons")
@@ -464,4 +495,100 @@ model ModelVersion {
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   @@map("model_versions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Gallery Candidate (Phase 5C)
+// ─────────────────────────────────────────────────────────────
+model MlV2GalleryCandidate {
+  id                 String                     @id @default(uuid())
+  organizationId     String                     @map("organization_id")
+  galleryCandidateId String                     @unique @default(uuid()) @map("gallery_candidate_id")
+  sourcePersonId     String?                    @map("source_person_id")
+  status             MlV2GalleryCandidateStatus
+  createdAt          DateTime                   @default(now()) @map("created_at") @db.Timestamptz()
+  deactivatedAt      DateTime?                  @map("deactivated_at") @db.Timestamptz()
+
+  organization Organization                  @relation(fields: [organizationId], references: [id])
+  versions     MlV2GalleryVersionCandidate[]
+
+  @@unique([organizationId, galleryCandidateId], name: "idx_v2_gallery_candidate_org_id")
+  @@map("ml_v2_gallery_candidates")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Gallery Version (Phase 5C)
+// ─────────────────────────────────────────────────────────────
+model MlV2GalleryVersion {
+  id                   String                   @id @default(uuid())
+  organizationId       String                   @map("organization_id")
+  version              String                   @db.VarChar(100)
+  checksum             String                   @db.VarChar(100)
+  modelVersion         String                   @map("model_version") @db.VarChar(50)
+  preprocessingVersion String                   @map("preprocessing_version") @db.VarChar(50)
+  status               MlV2GalleryVersionStatus
+  parentVersionId      String?                  @map("parent_version_id")
+  createdById          String?                  @map("created_by_id")
+  activatedAt          DateTime?                @map("activated_at") @db.Timestamptz()
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz()
+
+  organization Organization                  @relation(fields: [organizationId], references: [id])
+  createdBy    User?                         @relation("GalleryVersionCreator", fields: [createdById], references: [id])
+  candidates   MlV2GalleryVersionCandidate[]
+
+  @@unique([organizationId, version], name: "idx_v2_gallery_version_org_version")
+  @@map("ml_v2_gallery_versions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Gallery Version Candidate (Phase 5C)
+// ─────────────────────────────────────────────────────────────
+model MlV2GalleryVersionCandidate {
+  id                   String  @id @default(uuid())
+  galleryVersionId     String  @map("gallery_version_id")
+  galleryCandidateId   String  @map("gallery_candidate_id") // Relates to MlV2GalleryCandidate.galleryCandidateId
+  sourceObjectKey      String  @map("source_object_key")
+  sourceChecksum       String  @map("source_checksum")
+  embeddingArtifactKey String? @map("embedding_artifact_key")
+
+  galleryVersion MlV2GalleryVersion   @relation(fields: [galleryVersionId], references: [id], onDelete: Cascade)
+  candidate      MlV2GalleryCandidate @relation(fields: [galleryCandidateId], references: [galleryCandidateId])
+
+  @@unique([galleryVersionId, galleryCandidateId], name: "idx_v2_version_candidate_unique")
+  @@map("ml_v2_gallery_version_candidates")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ML V2 Candidate Mapping (Phase 5C)
+// ─────────────────────────────────────────────────────────────
+model MlV2CandidateMapping {
+  id                 String                     @id @default(uuid())
+  organizationId     String                     @map("organization_id")
+  galleryCandidateId String                     @map("gallery_candidate_id")
+  watchlistPersonId  String                     @map("watchlist_person_id")
+  status             MlV2CandidateMappingStatus @default(PENDING)
+  proposedById       String                     @map("proposed_by_id")
+  approvedById       String?                    @map("approved_by_id")
+  proposalReason     String?                    @map("proposal_reason") @db.Text
+  proposedAt         DateTime                   @default(now()) @map("proposed_at") @db.Timestamptz()
+  approvedAt         DateTime?                  @map("approved_at") @db.Timestamptz()
+  rejectedById       String?                    @map("rejected_by_id")
+  rejectedAt         DateTime?                  @map("rejected_at") @db.Timestamptz()
+  rejectionReason    String?                    @map("rejection_reason") @db.Text
+  revokedById        String?                    @map("revoked_by_id")
+  revokedAt          DateTime?                  @map("revoked_at") @db.Timestamptz()
+  revocationReason   String?                    @map("revocation_reason") @db.Text
+
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  watchlistPerson WatchlistPerson @relation(fields: [watchlistPersonId], references: [id], onDelete: Restrict)
+  proposedBy      User            @relation("MappingProposer", fields: [proposedById], references: [id])
+  approvedBy      User?           @relation("MappingApprover", fields: [approvedById], references: [id])
+  rejectedBy      User?           @relation("MappingRejector", fields: [rejectedById], references: [id])
+  revokedBy       User?           @relation("MappingRevoker", fields: [revokedById], references: [id])
+
+  // Optional: Enforce only one active mapping via application logic or partial unique index.
+  // Prisma doesn't fully support WHERE clauses in @unique, so we'll rely on service logic.
+
+  @@index([organizationId, galleryCandidateId, status], name: "idx_v2_mapping_org_candidate_status")
+  @@map("ml_v2_candidate_mappings")
 }

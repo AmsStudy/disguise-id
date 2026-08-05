@@ -63,7 +63,7 @@ class MLServiceV2Client {
       form.append('captured_at', metadata.captured_at);
       form.append('frame_number', metadata.frame_number.toString());
       form.append('bounding_box_json', metadata.bounding_box_json);
-      
+
       if (metadata.landmarks_json) form.append('landmarks_json', metadata.landmarks_json);
       if (metadata.detection_score !== undefined) form.append('detection_score', metadata.detection_score.toString());
       if (metadata.quality_score !== undefined) form.append('quality_score', metadata.quality_score.toString());
@@ -87,20 +87,20 @@ class MLServiceV2Client {
       }
 
       const data = validationResult.data;
-      
+
       logEntry.status = 'SUCCESS';
       logEntry.modelVersion = data.model_version;
       logEntry.galleryVersion = data.gallery_version;
-      
+
       // Dual-branch fields
       logEntry.original_valid = data.original.valid;
       logEntry.original_score = this.cleanNumber(data.original.score);
       logEntry.original_margin = this.cleanNumber(data.original.margin);
-      
+
       logEntry.reconstructed_valid = data.reconstructed.valid;
       logEntry.reconstructed_score = this.cleanNumber(data.reconstructed.score);
       logEntry.reconstructed_margin = this.cleanNumber(data.reconstructed.margin);
-      
+
       // Final decision
       logEntry.decision = data.frame_decision;
       logEntry.candidate_id = data.candidate_id;
@@ -113,7 +113,7 @@ class MLServiceV2Client {
       const v2Error = this.handleAxiosError(error);
       logEntry.errorCode = v2Error.code;
       logEntry.reason = v2Error.message;
-      // Intentionally do not throw further unless explicitly requested, 
+      // Intentionally do not throw further unless explicitly requested,
       // as this is a shadow worker that shouldn't disrupt V1 pipeline.
       if (mlServiceV2Config.failJob) {
         logger.error(`V2 shadow inference explicitly failed job ${jobId}`, v2Error);
@@ -139,15 +139,15 @@ class MLServiceV2Client {
     if (error instanceof MLServiceV2Error) {
       return error;
     }
-    
+
     if (axios.isAxiosError(error)) {
       const axiosErr = error as AxiosError;
       const status = axiosErr.response?.status;
-      
+
       if (axiosErr.code === 'ECONNABORTED') {
         return new MLServiceV2Error(V2ErrorCode.V2_TIMEOUT, 'Request timed out');
       }
-      
+
       if (!axiosErr.response) {
         return new MLServiceV2Error(V2ErrorCode.V2_UNAVAILABLE, 'Service unreachable or network error');
       }
@@ -155,12 +155,23 @@ class MLServiceV2Client {
       if (status === 401 || status === 403) {
         return new MLServiceV2Error(V2ErrorCode.V2_AUTH_ERROR, 'Authentication failed', status);
       }
-      
+
+      const responseData = axiosErr.response.data as any;
+
+      if (status === 503 && responseData?.error?.code === 'ORG_GALLERY_NOT_LOADED') {
+        return new MLServiceV2Error(
+          V2ErrorCode.ORG_GALLERY_NOT_LOADED,
+          responseData.error.message || 'Organization gallery is not loaded',
+          status,
+          responseData
+        );
+      }
+
       return new MLServiceV2Error(
         V2ErrorCode.V2_INTERNAL_ERROR,
         `V2 Service Error: ${status}`,
         status,
-        axiosErr.response.data
+        responseData
       );
     }
 

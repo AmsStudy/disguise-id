@@ -120,7 +120,7 @@ async def infer_face(
     detection_score: float = Form(None),
     quality_score: float = Form(None)
 ):
-    if not deps.get_gallery_service().prototypes:
+    if not deps.get_gallery_service().prototypes_by_org:
         raise HTTPException(status_code=503, detail="GALLERY_NOT_READY")
 
     if face_crop.content_type not in ALLOWED_MIME_TYPES:
@@ -156,5 +156,17 @@ async def infer_face(
             )
             response = inference_svc.process_frame(image_rgb, metadata)
         return response
+    except ValueError as e:
+        if str(e) == "ORG_GALLERY_NOT_LOADED":
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": {
+                        "code": "ORG_GALLERY_NOT_LOADED",
+                        "message": "Organization gallery is not loaded"
+                    }
+                }
+            )
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"INTERNAL_INFERENCE_ERROR: {str(e)}")
