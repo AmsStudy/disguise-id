@@ -12,7 +12,7 @@ export const MlV2ReviewNavigation = () => {
 
   return (
     <div className="flex items-center gap-4 border-b border-[rgba(255,255,255,0.1)] pb-4 mb-6">
-      <Link 
+      <Link
         href="/dashboard/ml-v2"
         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
           pathname === '/dashboard/ml-v2'
@@ -22,9 +22,9 @@ export const MlV2ReviewNavigation = () => {
       >
         Observability
       </Link>
-      
+
       {isReviewAllowed && (
-        <Link 
+        <Link
           href="/dashboard/ml-v2/reviews"
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             pathname?.startsWith('/dashboard/ml-v2/reviews')
@@ -35,6 +35,28 @@ export const MlV2ReviewNavigation = () => {
           Operator Reviews
         </Link>
       )}
+
+      <Link
+        href="/dashboard/ml-v2/promotions"
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          pathname?.startsWith('/dashboard/ml-v2/promotions')
+            ? 'bg-blue-500/20 text-blue-400'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+        }`}
+      >
+        Promotions
+      </Link>
+
+      <Link
+        href="/dashboard/ml-v2/reviewed-alerts"
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          pathname?.startsWith('/dashboard/ml-v2/reviewed-alerts')
+            ? 'bg-blue-500/20 text-blue-400'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+        }`}
+      >
+        Reviewed Alerts
+      </Link>
     </div>
   );
 };
