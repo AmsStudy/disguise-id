@@ -28,7 +28,8 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
 
-        const response = await fetch(`http://172.125.0.255:8889/${cameraId}/whep`, {
+        const whepBaseUrl = process.env.NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL || "http://localhost:8889";
+        const response = await fetch(`${whepBaseUrl}/${cameraId}/whep`, {
           method: "POST",
           headers: {
             "Content-Type": "application/sdp",

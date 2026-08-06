@@ -4,7 +4,7 @@ import { camerasService } from '../cameras/cameras.service';
 import { uploadFile, BUCKETS } from '../../config/minio';
 import { addInferenceJob, getJobStatus } from '../../queues';
 import { generateFileKey } from '../../utils/helpers';
-import { unauthorized, badRequest } from '../../utils/AppError';
+import { AppError, unauthorized, badRequest } from '../../utils/AppError';
 import { sendSuccess } from '../../utils/response';
 import { logger } from '../../config/logger';
 import prisma from '../../config/database';
@@ -16,25 +16,9 @@ export class InferenceController {
    */
   async submitFrame(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // 1. Validate API key and find camera
-      const apiKey = req.headers['x-api-key'] as string;
-      if (!apiKey) throw unauthorized('Missing X-Api-Key header');
-
-      let camera: any = null;
-      const validIotKey = process.env.IOT_API_KEY || 'disguise-iot-secret-key-2026';
-
-      // Support multi-camera IoT orchestrator (v2 script) using IOT_API_KEY + camera_id in form data
-      if (apiKey === validIotKey && req.body.camera_id) {
-        camera = await prisma.cctvSource.findFirst({
-          where: { id: req.body.camera_id, deletedAt: null },
-          select: { id: true, organizationId: true, threshold: true, modelVersion: true, status: true }
-        });
-      } else {
-        // Support single-camera standalone agent (v1 script) using individual camera API key
-        camera = await camerasService.findByApiKey(apiKey);
-      }
-
-      if (!camera) throw unauthorized('Invalid API key or Camera ID');
+      // 1. Get camera from middleware
+      const camera = (req as any).camera;
+      if (!camera) throw unauthorized('Camera context missing');
 
       // 2. Validate frame and crop files
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -45,31 +29,82 @@ export class InferenceController {
         throw badRequest('Both face_crop and frame_thumb images are required');
       }
 
-      // 3. Upload files to MinIO
-      const faceCropKey = generateFileKey('frames', faceCrop.originalname);
-      const frameThumbKey = generateFileKey('frames', frameThumb.originalname);
-      
-      const [faceCropUrl, frameThumbUrl] = await Promise.all([
-        uploadFile(BUCKETS.FRAMES, faceCropKey, faceCrop.buffer, faceCrop.mimetype),
-        uploadFile(BUCKETS.FRAMES, frameThumbKey, frameThumb.buffer, frameThumb.mimetype)
-      ]);
-
-      // 4. Parse text fields from request
       const {
-        detected_at,
+        capture_id,
+        captured_at,
         confidence,
         bbox_x,
         bbox_y,
         bbox_w,
         bbox_h,
         frame_w,
-        frame_h
+        frame_h,
+        face_index
       } = req.body;
+
+      if (!capture_id) throw badRequest('capture_id is required');
+
+      const fIndex = face_index || '0';
+      const timestamp = captured_at || new Date().toISOString();
+      const jobId = `${camera.id}:${capture_id}:${fIndex}`; // Canonical BullMQ Job ID
+
+      // Guard: Max faces per capture (Phase 6A.5)
+      const faceIndexInt = parseInt(fIndex, 10);
+      if (faceIndexInt >= 10) { // MAX_FACES_PER_CAPTURE = 10
+        throw badRequest('Max faces per capture exceeded');
+      }
+
+      // 4. Backpressure and flood protection (2-layer Redis lock)
+      const redis = require('../../config/redis').getRedis();
+      const activeCaptureKey = `camera-inference:${camera.id}:capture_id`;
+      const pendingCountKey = `camera-inference:${camera.id}:count`;
+      const samplingLockKey = `camera-capture:${camera.id}`;
+
+      let activeCapture = await redis.get(activeCaptureKey);
+
+      if (activeCapture && activeCapture !== capture_id) {
+        throw new AppError('TOO_MANY_REQUESTS', 'Camera is processing another frame', 429);
+      }
+
+      if (activeCapture !== capture_id) {
+        // Atomically attempt to make this capture_id the active one
+        const acquired = await redis.set(activeCaptureKey, capture_id, 'NX', 'EX', 60);
+        if (acquired) {
+          // We are the first face of this new capture. Check sampling rate!
+          const sampled = await redis.set(samplingLockKey, capture_id, 'NX', 'EX', 1);
+          if (!sampled) {
+            // Rate limit exceeded. Revert active capture.
+            await redis.del(activeCaptureKey);
+            throw new AppError('TOO_MANY_REQUESTS', 'Camera sampling limit exceeded', 429);
+          }
+          await redis.set(pendingCountKey, 0, 'EX', 60);
+        } else {
+          // Another face sneaked in. Verify it's ours.
+          activeCapture = await redis.get(activeCaptureKey);
+          if (activeCapture !== capture_id) {
+            throw new AppError('TOO_MANY_REQUESTS', 'Camera is processing another frame', 429);
+          }
+        }
+      }
+
+      // We safely belong to the activeCapture now.
+      await redis.incr(pendingCountKey);
+      await redis.expire(pendingCountKey, 60);
+
+      // 5. Upload files to MinIO
+      const faceCropKey = generateFileKey('frames', faceCrop.originalname);
+      const frameThumbKey = generateFileKey('frames', frameThumb.originalname);
+
+      const [faceCropUrl, frameThumbUrl] = await Promise.all([
+        uploadFile(BUCKETS.FRAMES, faceCropKey, faceCrop.buffer, faceCrop.mimetype),
+        uploadFile(BUCKETS.FRAMES, frameThumbKey, frameThumb.buffer, frameThumb.mimetype)
+      ]);
 
       // Pack them into metadata for the inference queue
       const metadata = {
-        detected_at,
+        detected_at: timestamp,
         confidence: parseFloat(confidence),
+        face_index: parseInt(fIndex, 10),
         bbox: {
           x: parseInt(bbox_x, 10),
           y: parseInt(bbox_y, 10),
@@ -82,19 +117,18 @@ export class InferenceController {
         }
       };
 
-      // 5. Enqueue inference job
-      const jobId = uuidv4();
-      const timestamp = detected_at || new Date().toISOString();
+      // 6. Enqueue inference job (BullMQ uses jobId for deduplication)
 
       await addInferenceJob({
         jobId,
-        frameKey: faceCropKey, // For backward compatibility or you can use frameThumbKey
+        frameKey: faceCropKey,
         frameUrl: faceCropUrl,
         cameraId: camera.id,
         orgId: camera.organizationId,
         threshold: Number(camera.threshold),
         modelVersion: camera.modelVersion,
         timestamp,
+        captureId: capture_id,
         metadata: {
           ...metadata,
           frameThumbKey,

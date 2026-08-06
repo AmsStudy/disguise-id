@@ -8,7 +8,21 @@ import { connectDatabase } from './config/database';
 import { ensureBuckets } from './config/minio';
 import { startWorkers } from './queues';
 
+import axios from 'axios';
+
 const PORT = process.env.PORT || 3000;
+
+async function checkMediaMTX() {
+  try {
+    // Check MediaMTX API endpoint (typically 9997)
+    await axios.get('http://localhost:9997/v3/config/global/read', { timeout: 3000 });
+    logger.info('✅ MediaMTX API is reachable (Port 9997)');
+  } catch (error: any) {
+    logger.warn(`⚠️ MediaMTX API check failed. Streaming features may not work. Error: ${error.message}`);
+    // We do not exit the process here to allow backend to run even if MediaMTX is down,
+    // as requested, it's a preflight warning/check.
+  }
+}
 
 async function bootstrap() {
   try {
@@ -16,6 +30,7 @@ async function bootstrap() {
     await connectDatabase();
     await connectRedis();
     await ensureBuckets();
+    await checkMediaMTX();
 
     // Create HTTP + WebSocket server
     const httpServer = createServer(app);

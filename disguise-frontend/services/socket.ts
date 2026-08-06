@@ -39,7 +39,7 @@ export const connectSocket = () => {
     console.log('[Socket] Alert updated:', data);
   });
 
-  socket.on('camera:status', (data: { camera_id: string; status: 'online' | 'offline' | 'maintenance' }) => {
+  socket.on('camera:status', (data: { camera_id: string; status: 'online' | 'offline' | 'error' | 'credentials_required' | 'maintenance' }) => {
     useCameraStore.getState().updateStatus(data);
   });
 

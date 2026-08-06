@@ -1,7 +1,7 @@
 'use client';
 
 interface StatusDotProps {
-  status: 'online' | 'offline' | 'maintenance';
+  status: 'online' | 'offline' | 'error' | 'credentials_required' | 'maintenance';
   size?: number;
   showLabel?: boolean;
 }
@@ -11,11 +11,15 @@ export const StatusDot: React.FC<StatusDotProps> = ({ status, size = 10, showLab
     online: '#00E676',
     offline: '#FF3D3D',
     maintenance: '#FFD600',
+    error: '#FF3D3D',
+    credentials_required: '#FFA726',
   };
   const labelMap = {
     online: 'Online',
     offline: 'Offline',
     maintenance: 'Maintenance',
+    error: 'Error',
+    credentials_required: 'Setup Required',
   };
   const color = colorMap[status];
 

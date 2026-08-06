@@ -5,7 +5,7 @@ interface CameraStore {
   cameras: Camera[];
   selectedCameraId: string | null;
   setCameras: (cameras: Camera[]) => void;
-  updateStatus: (data: { camera_id: string; status: 'online' | 'offline' | 'maintenance' }) => void;
+  updateStatus: (data: { camera_id: string; status: 'online' | 'offline' | 'error' | 'credentials_required' | 'maintenance' }) => void;
   selectCamera: (id: string | null) => void;
 }
 

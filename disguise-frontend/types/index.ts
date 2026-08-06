@@ -32,7 +32,7 @@ export interface Camera {
   name: string;
   location?: string;
   locationName?: string;
-  status: 'online' | 'offline' | 'maintenance';
+  status: 'online' | 'offline' | 'error' | 'credentials_required' | 'maintenance';
   streamUrl?: string;
   ipAddress?: string;
   username?: string;

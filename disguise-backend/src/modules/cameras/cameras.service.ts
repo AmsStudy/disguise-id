@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { CameraStatus } from '../../types';
 import bcrypt from 'bcryptjs';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -8,6 +9,7 @@ import prisma from '../../config/database';
 import { badRequest, notFound } from '../../utils/AppError';
 import { generateApiKey } from '../../utils/helpers';
 import { getPaginationParams, paginate } from '../../utils/response';
+import { CameraCredentialEncryption } from '../../utils/cameraCredentialEncryption';
 import { CreateCameraInput, UpdateCameraInput, ListCamerasQuery } from './cameras.schema';
 
 const execFileAsync = promisify(execFile);
@@ -21,6 +23,7 @@ const CAMERA_SELECT = {
   streamUrl: true,
   ipAddress: true,
   username: true,
+  credentialsConfigured: true,
   modelVersion: true,
   threshold: true,
   status: true,
@@ -99,12 +102,16 @@ export class CamerasService {
     return { ...camera, detections_today: detectionsToday, alerts_today: alertsToday, total_detections: totalDetections };
   }
 
-  private buildRtspUrl(streamUrl?: string | null, username?: string | null, password?: string | null): string {
+  private buildRtspUrl(streamUrl: string | null | undefined, username: string | null | undefined, passwordRaw: string | null | undefined, orgId: string, cameraId: string): string {
     if (!streamUrl) throw badRequest('Stream URL is required for RTSP health check');
     try {
       const parsed = new URL(streamUrl);
       if (!parsed.username && username) parsed.username = username;
-      if (!parsed.password && password) {
+      if (!parsed.password && passwordRaw) {
+        let password = passwordRaw;
+        if (CameraCredentialEncryption.isEncrypted(passwordRaw)) {
+          password = CameraCredentialEncryption.decrypt(passwordRaw, orgId, cameraId);
+        }
         // Enclose password in decodeURIComponent to avoid double encoding, but ensure it's URL-safe
         parsed.password = encodeURIComponent(password);
       }
@@ -121,7 +128,7 @@ export class CamerasService {
       
       for (const cam of cameras) {
         if (cam.streamUrl) {
-          const rtspUrl = this.buildRtspUrl(cam.streamUrl, cam.username, cam.password);
+          const rtspUrl = this.buildRtspUrl(cam.streamUrl, cam.username, cam.password, cam.organizationId, cam.id);
           yamlContent += `  "${cam.id}":\n    source: "${rtspUrl}"\n    sourceProtocol: tcp\n`;
         }
       }
@@ -159,7 +166,7 @@ export class CamerasService {
     if (!camera.streamUrl) throw badRequest('Camera does not have a stream URL configured');
 
     const probePath = typeof ffprobe === 'string' ? ffprobe : ffprobe.path;
-    const rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password);
+    const rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password, orgId, id);
     const args = [
       '-rtsp_transport', 'tcp',
       '-v', 'error',
@@ -205,7 +212,7 @@ export class CamerasService {
     if (!camera) throw notFound('Camera');
     if (!camera.streamUrl) throw badRequest('Camera does not have a stream URL configured');
 
-    const rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password);
+    const rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password, orgId, id);
     // @ts-ignore
     const ffmpegBinary = typeof ffmpegPath === 'string' ? ffmpegPath : ffmpegPath?.path || String(ffmpegPath);
     const args = [
@@ -250,14 +257,24 @@ export class CamerasService {
     const plainApiKey = generateApiKey();
     const apiKeyHash = await bcrypt.hash(plainApiKey, 12);
 
+    // Assign a temporary ID if we need it for encryption AAD before create, but Prisma creates uuid().
+    // We will generate the UUID manually first.
+    const cameraId = require('crypto').randomUUID();
+
+    const encryptedPassword = input.password
+      ? CameraCredentialEncryption.encrypt(input.password, orgId, cameraId)
+      : undefined;
+
     const camera = await prisma.cctvSource.create({
       data: {
+        id: cameraId,
         organizationId: orgId,
         name: input.name,
         locationName: input.location_name,
         ipAddress: input.ip_address,
         username: input.username,
-        password: input.password,
+        password: encryptedPassword,
+        credentialsConfigured: !!input.password,
         latitude: input.latitude,
         longitude: input.longitude,
         streamUrl: input.stream_url,
@@ -294,6 +311,10 @@ export class CamerasService {
     });
     if (!existing) throw notFound('Camera');
 
+    const encryptedPassword = input.password !== undefined && input.password !== null
+      ? CameraCredentialEncryption.encrypt(input.password, orgId, id)
+      : undefined;
+
     const updated = await prisma.cctvSource.update({
       where: { id },
       data: {
@@ -301,7 +322,7 @@ export class CamerasService {
         ...(input.location_name !== undefined && { locationName: input.location_name }),
         ...(input.ip_address !== undefined && { ipAddress: input.ip_address }),
         ...(input.username !== undefined && { username: input.username }),
-        ...(input.password !== undefined && { password: input.password }),
+        ...(encryptedPassword !== undefined && { password: encryptedPassword, credentialsConfigured: true }),
         ...(input.latitude !== undefined && { latitude: input.latitude }),
         ...(input.longitude !== undefined && { longitude: input.longitude }),
         ...(input.stream_url !== undefined && { streamUrl: input.stream_url }),
@@ -320,7 +341,14 @@ export class CamerasService {
         action: 'CAMERA_UPDATED',
         resourceType: 'cctv_source',
         resourceId: id,
-        newValue: input as unknown as Prisma.InputJsonValue,
+        newValue: {
+          name: input.name || existing.name,
+          locationName: input.location_name,
+          ipAddress: input.ip_address,
+          threshold: input.threshold,
+          status: input.status,
+          credentialsChanged: input.password !== undefined,
+        },
 
       },
     });
@@ -411,7 +439,7 @@ export class CamerasService {
   /**
    * Update camera status (called when camera connects/disconnects)
    */
-  async updateStatus(id: string, status: 'online' | 'offline' | 'error') {
+  async updateStatus(id: string, status: CameraStatus) {
     await prisma.cctvSource.update({
       where: { id },
       data: { status, lastSeenAt: status === 'online' ? new Date() : undefined },

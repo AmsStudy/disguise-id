@@ -127,19 +127,20 @@ model CctvSource {
   locationName   String?   @map("location_name") @db.VarChar(255)
   latitude       Decimal?  @db.Decimal(10, 8)
   longitude      Decimal?  @db.Decimal(11, 8)
-  streamUrl      String?   @map("stream_url")
-  ipAddress      String?   @map("ip_address") @db.VarChar(255)
-  username       String?   @db.VarChar(255)
-  password       String?   @db.VarChar(255)
-  apiKeyHash     String?   @map("api_key_hash") @db.VarChar(255)
-  modelVersion   String    @default("v1") @map("model_version") @db.VarChar(50)
-  threshold      Decimal   @default(0.570) @db.Decimal(4, 3)
-  status         String    @default("offline") @db.VarChar(50) // online | offline | error
-  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz()
-  metadata       Json      @default("{}")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz()
+  streamUrl             String?   @map("stream_url")
+  ipAddress             String?   @map("ip_address") @db.VarChar(255)
+  username              String?   @db.VarChar(255)
+  password              String?   @db.Text
+  credentialsConfigured Boolean   @default(false) @map("credentials_configured")
+  apiKeyHash            String?   @map("api_key_hash") @db.VarChar(255)
+  modelVersion          String    @default("v1") @map("model_version") @db.VarChar(50)
+  threshold             Decimal   @default(0.570) @db.Decimal(4, 3)
+  status                String    @default("offline") @db.VarChar(50) // online | offline | error | credentials_required
+  lastSeenAt            DateTime? @map("last_seen_at") @db.Timestamptz()
+  metadata              Json      @default("{}")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz()
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   detectionEvents DetectionEvent[]

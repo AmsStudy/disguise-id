@@ -22,6 +22,8 @@ import promotionRouter from './modules/ml-v2-promotion/promotion.router';
 import { mlV2ReviewedAlertRouter } from './modules/ml-v2-reviewed-alert/reviewed-alert.routes';
 import gallerySyncRouter from './modules/gallery-sync/gallery-sync.router';
 import candidateMappingRouter from './modules/candidate-mapping/candidate-mapping.router';
+import { cameraAgentRouter } from './modules/camera-agent/camera-agent.router';
+import { systemRouter } from './modules/system/system.router';
 
 const app = express();
 
@@ -89,6 +91,8 @@ app.use(`${API_PREFIX}/ml-v2/gallery`, gallerySyncRouter);
 app.use(`${API_PREFIX}/ml-v2/candidate-mappings`, candidateMappingRouter);
 app.use(`${API_PREFIX}/ml-v2`, mlV2Router);
 app.use(`${API_PREFIX}/detection-events`, detectionEventMlV2Router);
+app.use(`${API_PREFIX}/camera-agent`, cameraAgentRouter);
+app.use(`${API_PREFIX}/system`, systemRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((_req, res) => {

@@ -26,13 +26,13 @@ export const updateCameraSchema = z.object({
   model_version: z.string().max(50).optional(),
   threshold: z.number().min(0).max(1).optional(),
   metadata: z.record(z.unknown()).optional(),
-  status: z.enum(['online', 'offline', 'error']).optional(),
+  status: z.enum(['online', 'offline', 'error', 'credentials_required']).optional(),
 });
 
 export const listCamerasQuerySchema = z.object({
   page: z.string().optional(),
   limit: z.string().optional(),
-  status: z.enum(['online', 'offline', 'error']).optional(),
+  status: z.enum(['online', 'offline', 'error', 'credentials_required']).optional(),
   search: z.string().optional(),
 });
 

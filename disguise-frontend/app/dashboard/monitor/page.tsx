@@ -9,7 +9,7 @@ import { StatusDot } from '@/components/ui/StatusDot';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { cameraApi } from '@/services/api';
+import { cameraApi, systemApi } from '@/services/api';
 import type { Camera } from '@/types';
 import LiveCamera from '@/components/LiveCamera';
 
@@ -32,6 +32,8 @@ export default function MonitorPage() {
   const [testingConnection, setTestingConnection] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [healthData, setHealthData] = useState<any>(null);
+  const [systemHealth, setSystemHealth] = useState<{ available: boolean; reason: string } | null>(null);
 
   const [name, setName] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -69,7 +71,29 @@ export default function MonitorPage() {
     }
 
     fetchPreview(selected.id);
-    const interval = setInterval(() => fetchPreview(selected.id), 10000);
+    const fetchHealth = async () => {
+      try {
+        const [resCamera, resSystem] = await Promise.all([
+          cameraApi.getHealth(selected.id),
+          systemApi.getMediaMtxHealth()
+        ]);
+        setHealthData(resCamera.data.data);
+        if (resSystem.data.data.preview.available === false) {
+           // We can store this in a state or just use it
+           setSystemHealth(resSystem.data.data.preview);
+        } else {
+           setSystemHealth({ available: true, reason: 'OK' });
+        }
+      } catch (err) {
+        setHealthData(null);
+      }
+    };
+    fetchHealth();
+
+    const interval = setInterval(() => {
+      fetchPreview(selected.id);
+      fetchHealth();
+    }, 10000);
     return () => {
       clearInterval(interval);
       if (previewUrl) {
@@ -327,7 +351,19 @@ export default function MonitorPage() {
               border: '1px solid rgba(0,229,255,0.1)',
             }}
           >
-            {selected?.status === 'online' ? (
+            {systemHealth?.available === false ? (
+              <>
+                <div style={{ fontSize: '64px', opacity: 0.15, color: '#FF3D3D' }}><FontAwesomeIcon icon={faVideo} /></div>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ color: '#FF3D3D', fontSize: '14px', fontFamily: 'Inter, sans-serif', textAlign: 'center', fontWeight: 'bold' }}>
+                    <div>Preview Unavailable</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px', color: '#A5F3FC', fontFamily: 'JetBrains Mono, monospace' }}>
+                      {systemHealth.reason}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : selected?.status === 'online' ? (
               <LiveCamera cameraId={selected.id} />
             ) : previewUrl ? (
               <img src={previewUrl} alt="Live feed preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -360,12 +396,39 @@ export default function MonitorPage() {
             </div>
             {selected ? (
               <div style={{ padding: '16px', background: 'rgba(17, 34, 54, 0.85)', border: '1px solid rgba(0,229,255,0.08)', borderRadius: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#8BAFC4', marginBottom: '10px' }}>IP Address</div>
-                <div style={{ fontSize: '14px', color: '#E8F4F8', marginBottom: '12px' }}>{selected.ipAddress || 'Tidak tersedia'}</div>
-                <div style={{ fontSize: '13px', color: '#8BAFC4', marginBottom: '10px' }}>Username</div>
-                <div style={{ fontSize: '14px', color: '#E8F4F8', marginBottom: '12px' }}>{selected.username || 'Tidak tersedia'}</div>
                 <div style={{ fontSize: '13px', color: '#8BAFC4', marginBottom: '10px' }}>Stream URL</div>
-                <div style={{ fontSize: '14px', color: '#E8F4F8', wordBreak: 'break-all' }}>{selected.streamUrl || 'Tidak tersedia'}</div>
+                <div style={{ fontSize: '14px', color: '#E8F4F8', wordBreak: 'break-all', marginBottom: '16px' }}>{selected.streamUrl || 'Tidak tersedia'}</div>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+                <div style={{ fontSize: '12px', color: '#00E5FF', fontWeight: 600, marginBottom: '12px' }}>Status Operasional</div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>FPS Saat Ini</div>
+                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.currentFps || 0} fps</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Dropped Frames</div>
+                    <div style={{ fontSize: '14px', color: '#FF6B35', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.droppedFrames || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Queue Backlog</div>
+                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.queueBacklog || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Failures (Consecutive)</div>
+                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.consecutiveFailures || 0}</div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '16px', fontSize: '11px', color: '#4A6B84' }}>
+                  Last Heartbeat: {healthData?.operational?.agentHeartbeatAt ? new Date(healthData.operational.agentHeartbeatAt).toLocaleTimeString() : 'N/A'}
+                </div>
+                {healthData?.operational?.lastErrorCode && (
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#FF3D3D' }}>
+                    Error: {healthData.operational.lastErrorCode}
+                  </div>
+                )}
                 {connectionMessage && (
                   <div style={{ marginTop: '12px', fontSize: '12px', color: '#A5F3FC' }}>{connectionMessage}</div>
                 )}

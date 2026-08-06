@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { inferenceController } from './inference.controller';
 import { authenticate } from '../../middleware/auth';
+import { cameraAgentAuth } from '../../middleware/cameraApiKey.middleware';
 import { uploadFrame } from '../../utils/upload';
 import { rateLimit } from 'express-rate-limit';
 
@@ -21,6 +22,7 @@ const cameraRateLimit = rateLimit({
 inferenceRouter.post(
   '/frame',
   cameraRateLimit,
+  cameraAgentAuth,
   uploadFrame.fields([
     { name: 'face_crop', maxCount: 1 },
     { name: 'frame_thumb', maxCount: 1 }

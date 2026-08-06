@@ -421,6 +421,21 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
   } catch (error) {
     logger.error('Inference worker error', { jobId: job.id, error });
     throw error; // Re-throw to trigger BullMQ retry
+  } finally {
+    // Decrement pending face count and release capture lock if 0
+    try {
+      const redis = require('../config/redis').getRedis();
+      const activeCaptureKey = `camera-inference:${cameraId}:capture_id`;
+      const pendingCountKey = `camera-inference:${cameraId}:count`;
+
+      const remaining = await redis.decr(pendingCountKey);
+      if (remaining <= 0) {
+        // All faces for this capture have been processed, clear the active capture to immediately allow next frame
+        await redis.del(activeCaptureKey);
+      }
+    } catch (e) {
+      logger.warn('Failed to decrement pending face count', { error: e });
+    }
   }
 };
 

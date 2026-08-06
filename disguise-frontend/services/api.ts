@@ -55,6 +55,7 @@ export const cameraApi = {
   delete: (id: string) => api.delete(`/cameras/${id}`),
   testConnection: (id: string) => api.post(`/cameras/${id}/test-connection`),
   preview: (id: string) => api.get(`/cameras/${id}/preview`, { responseType: 'blob' }),
+  getHealth: (id: string) => api.get(`/cameras/${id}/health`),
 };
 
 // Alerts
@@ -99,4 +100,9 @@ export const userApi = {
   create: (data: { email: string; name: string; role: string; password: string }) => api.post('/users', data),
   update: (id: string, data: Partial<{ name: string; role: string }>) => api.patch(`/users/${id}`, data),
   delete: (id: string) => api.delete(`/users/${id}`),
+};
+
+// System
+export const systemApi = {
+  getMediaMtxHealth: () => api.get('/system/mediamtx/health'),
 };

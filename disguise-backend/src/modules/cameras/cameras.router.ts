@@ -10,6 +10,7 @@ import {
 
 export const camerasRouter = Router();
 
+// Admin endpoints
 camerasRouter.use(authenticate);
 
 // GET /cameras

@@ -6,7 +6,7 @@ export type AlertPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type DangerLevel = 'low' | 'medium' | 'high' | 'critical';
 
-export type CameraStatus = 'online' | 'offline' | 'error';
+export type CameraStatus = 'online' | 'offline' | 'error' | 'credentials_required';
 
 export type CaseStatus = 'open' | 'investigating' | 'closed' | 'archived';
 
@@ -77,5 +77,6 @@ export interface InferenceJobData {
   threshold: number;
   modelVersion: string;
   timestamp: string;
+  captureId?: string;
   metadata?: Record<string, unknown>;
 }
