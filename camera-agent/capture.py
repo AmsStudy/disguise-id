@@ -16,30 +16,30 @@ class RTSPCapture:
     def connect(self):
         if self.cap is not None:
             self.cap.release()
-            
+
         logger.info(f"Connecting to RTSP stream: {self.rtsp_url}")
         # Using environment variables or OpenCV options to prefer TCP
         # cv2.CAP_FFMPEG is default, we can pass ENV vars externally
         self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         if not self.cap.isOpened():
             raise ConnectionError(f"Failed to open RTSP stream: {self.rtsp_url}")
-            
+
         logger.info("Successfully connected to RTSP stream.")
 
     def read_frames(self) -> Generator[np.ndarray, None, None]:
         last_frame_time = 0
-        
+
         while True:
             if not self.cap or not self.cap.isOpened():
                 logger.warning("RTSP connection lost. Reconnecting...")
                 self.reconnect_with_backoff()
-                
+
             ret, frame = self.cap.read()
             if not ret:
                 logger.warning("Empty frame received. Reconnecting...")
                 self.reconnect_with_backoff()
                 continue
-                
+
             current_time = time.time()
             if current_time - last_frame_time >= self.frame_interval:
                 last_frame_time = current_time
@@ -48,7 +48,7 @@ class RTSPCapture:
     def reconnect_with_backoff(self):
         retry_delay = 1
         max_delay = 60
-        
+
         while True:
             try:
                 time.sleep(retry_delay)
