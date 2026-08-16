@@ -7,16 +7,22 @@ import { connectRedis } from './config/redis';
 import { connectDatabase } from './config/database';
 import { ensureBuckets } from './config/minio';
 import { startWorkers } from './queues';
+import { camerasService } from './modules/cameras/cameras.service';
 
 import axios from 'axios';
 
 const PORT = process.env.PORT || 3000;
 
 async function checkMediaMTX() {
+  const mtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://127.0.0.1:9997';
   try {
-    // Check MediaMTX API endpoint (typically 9997)
-    await axios.get('http://localhost:9997/v3/config/global/read', { timeout: 3000 });
-    logger.info('✅ MediaMTX API is reachable (Port 9997)');
+    // Check MediaMTX API endpoint
+    await axios.get(`${mtxApiUrl}/v3/paths/list`, { timeout: 3000 });
+    logger.info(`✅ MediaMTX API is reachable (${mtxApiUrl})`);
+    
+    // Sync cameras
+    await camerasService.syncMediaMtxConfigAll();
+    logger.info(`✅ Camera configurations synced to MediaMTX`);
   } catch (error: any) {
     logger.warn(`⚠️ MediaMTX API check failed. Streaming features may not work. Error: ${error.message}`);
     // We do not exit the process here to allow backend to run even if MediaMTX is down,

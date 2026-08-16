@@ -16,6 +16,7 @@ interface ButtonProps {
   fullWidth?: boolean;
   'aria-label'?: string;
   id?: string;
+  style?: React.CSSProperties;
 }
 
 const variantStyles = {
@@ -69,6 +70,7 @@ export const Button: React.FC<ButtonProps> = ({
   fullWidth = false,
   'aria-label': ariaLabel,
   id,
+  style,
 }) => {
   const v = variantStyles[variant];
   const s = sizeStyles[size];
@@ -97,6 +99,7 @@ export const Button: React.FC<ButtonProps> = ({
         transition: 'all 0.2s ease',
         width: fullWidth ? '100%' : undefined,
         opacity: disabled ? 0.5 : 1,
+        ...style,
       }}
       className={className}
     >

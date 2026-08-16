@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 export const createPersonSchema = z.object({
   full_name: z.string().min(2).max(255),
-  alias: z.array(z.string()).optional().default([]),
+  alias: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return [val]; }
+    }
+    return val;
+  }, z.array(z.string())).optional().default([]),
   id_number: z.string().max(100).optional(),
   date_of_birth: z.string().optional(), // ISO date string
   gender: z.enum(['male', 'female', 'unknown']).optional(),
@@ -14,7 +19,12 @@ export const createPersonSchema = z.object({
 
 export const updatePersonSchema = z.object({
   full_name: z.string().min(2).max(255).optional(),
-  alias: z.array(z.string()).optional(),
+  alias: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return [val]; }
+    }
+    return val;
+  }, z.array(z.string())).optional(),
   id_number: z.string().max(100).optional(),
   date_of_birth: z.string().optional(),
   gender: z.enum(['male', 'female', 'unknown']).optional(),
@@ -22,7 +32,11 @@ export const updatePersonSchema = z.object({
   description: z.string().optional(),
   danger_level: z.enum(['low', 'medium', 'high', 'critical']).optional(),
   case_reference: z.string().max(255).optional(),
-  is_active: z.boolean().optional(),
+  is_active: z.preprocess((val) => {
+    if (val === 'true') return true;
+    if (val === 'false') return false;
+    return val;
+  }, z.boolean()).optional(),
 });
 
 export const listWatchlistQuerySchema = z.object({

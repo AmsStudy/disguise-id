@@ -16,11 +16,9 @@ import { useAuthStore } from '@/store/authStore';
 import { formatRelative, formatDate } from '@/utils/format';
 import CountUp from 'react-countup';
 import { analyticsApi, alertApi } from '@/services/api';
+import { useAlertStore } from '@/store/alertStore';
 
-const mockChartData = Array.from({ length: 24 }, (_, i) => ({
-  hour: `${i.toString().padStart(2, '0')}:00`,
-  detections: Math.floor(Math.random() * 80 + 10),
-}));
+
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -33,7 +31,9 @@ export default function DashboardPage() {
     camerasTotal: 0,
     watchlistActive: 0,
   });
-  const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const { alerts, setAlerts } = useAlertStore();
+  const recentAlerts = alerts.slice(0, 5);
+  const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
     const t = setTimeout(() => setStarted(true), 200);
@@ -58,6 +58,13 @@ export default function DashboardPage() {
             camerasTotal: (dashboardData.today?.cameras_online || 0) + (dashboardData.today?.cameras_offline || 0),
             watchlistActive: dashboardData.watchlist_count || 0,
           });
+
+          if (dashboardData.hourly_detection_chart) {
+            setChartData(dashboardData.hourly_detection_chart.map((d: any) => ({
+              hour: new Date(d.hour).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+              detections: d.count
+            })));
+          }
         }
         
         if (alertsRes.data && alertsRes.data.data) {
@@ -72,7 +79,10 @@ export default function DashboardPage() {
               bestShots.set(pid, a);
             }
           });
-          setRecentAlerts(Array.from(bestShots.values()));
+          // Only overwrite store if it's currently empty, to not destroy WebSocket live updates
+          if (useAlertStore.getState().alerts.length === 0) {
+             setAlerts(Array.from(bestShots.values()));
+          }
         }
       } catch (err) {
         console.error("Failed to load dashboard data", err);
@@ -214,7 +224,7 @@ export default function DashboardPage() {
                     }}
                   >
                     {alert.detectionEvent?.faceCropUrl ? (
-                      <img src={alert.detectionEvent.faceCropUrl} alt="Face" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={alert.detectionEvent.faceCropUrl} alt="Face" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                     ) : (
                       <FontAwesomeIcon icon={faUser} style={{ color: '#00CFE8' }} />
                     )}
@@ -250,8 +260,8 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Right / Bottom Metrics */}
-                <div className="alert-item-metrics" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
-                  <SimilarityScore score={alert.similarityScore} size="sm" />
+                <div className="alert-item-metrics" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', minWidth: '80px' }}>
+                  <SimilarityScore score={alert.similarityScore ?? alert.similarity ?? 0} size="sm" />
                   <Badge variant={alert.priority}>{alert.priority.toUpperCase()}</Badge>
                 </div>
               </div>
@@ -274,7 +284,7 @@ export default function DashboardPage() {
             <StatusDot status="online" showLabel />
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={mockChartData}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="tealGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#0097B2" stopOpacity={0.4} />

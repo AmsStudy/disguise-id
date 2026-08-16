@@ -4,6 +4,7 @@ import sys
 import datetime
 import time
 import requests
+import cv2
 import uuid
 from config import config
 from capture import RTSPCapture
@@ -98,13 +99,24 @@ def main():
                         
                     rtsp_url = parsed._replace(netloc=netloc).geturl()
                     
-                    if capture:
-                        capture.release()
+                    # [WORKAROUND] Route through MediaMTX Proxy for Stream 1
+                    # MediaMTX already holds the physical Stream 1 connection.
+                    camera_id = backend_config.get("cameraId")
+                    if camera_id:
+                        rtsp_url = f"rtsp://127.0.0.1:8554/{camera_id}"
+                        logger.info(f"Routing RTSP through MediaMTX Proxy: {rtsp_url}")
                     
-                    if is_enabled:
-                        capture = RTSPCapture(rtsp_url=rtsp_url, fps=current_fps)
+                    if capture:
+                        current_rtsp = getattr(capture, 'rtsp_url', None)
+                        if current_rtsp != rtsp_url:
+                            capture.release()
+                            capture = None
+
+                    if is_enabled and not capture:
+                        # Force capture to run at 5 FPS for smooth tracking overlay
+                        capture = RTSPCapture(rtsp_url=rtsp_url, fps=5)
                         capture.connect()
-                        logger.info(f"Connected to RTSP stream at {current_fps} FPS")
+                        logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
 
             if not is_enabled or not capture:
                 time.sleep(5)
@@ -112,6 +124,8 @@ def main():
                 
             # Read frames for the next 15 seconds, then re-poll config
             end_time = time.time() + 15
+            last_ml_upload_time = 0
+            
             for frame in capture.read_frames():
                 if time.time() > end_time:
                     break
@@ -119,21 +133,41 @@ def main():
                 capture_id = str(uuid.uuid4())
                 timestamp = datetime.datetime.utcnow().isoformat() + "Z"
                 
+                # Detect faces and extract embeddings
                 faces, thumb_bytes, dims = detector.process_frame(frame)
                 
-                if len(faces) > 0:
-                    logger.info(f"Found {len(faces)} face(s) for capture {capture_id}")
-                    face_index = 0
-                    for face in faces:
-                        uploader.upload_face(
-                            face=face,
-                            frame_thumb_bytes=thumb_bytes,
-                            frame_dims=dims,
-                            capture_id=capture_id,
-                            timestamp=timestamp,
-                            face_index=face_index
-                        )
-                        face_index += 1
+                # --- LIVE TRACKING (Pendekatan B) ---
+                # Upload bounding boxes immediately at 5 FPS to power the UI Canvas overlay
+                bboxes = [[int(f.bbox.x), int(f.bbox.y), int(f.bbox.w), int(f.bbox.h), round(float(f.confidence), 2)] for f in faces]
+                if len(bboxes) > 0:
+                    uploader.upload_live_tracking(bboxes, timestamp, frame.shape[1], frame.shape[0])
+                
+                # --- ML INFERENCE (Throttled) ---
+                # Only upload full frames to Backend ML (InceptionResnetV1) at the configured sampleFps (1 FPS)
+                if time.time() - last_ml_upload_time >= (1.0 / current_fps):
+                    last_ml_upload_time = time.time()
+                    
+                    # [DEBUG] Simpan 1 frame setiap 5 detik
+                    if int(time.time()) % 5 == 0:
+                        preview_frame = frame
+                        if config.face_box_overlay_enabled:
+                            from face_detector import draw_face_boxes
+                            preview_frame = draw_face_boxes(frame, faces)
+                        cv2.imwrite(f"debug_frame.jpg", preview_frame)
+
+                    if len(faces) > 0:
+                        logger.info(f"Found {len(faces)} face(s) for capture {capture_id}")
+                        face_index = 0
+                        for face in faces:
+                            uploader.upload_face(
+                                face=face,
+                                frame_thumb_bytes=thumb_bytes,
+                                frame_dims=dims,
+                                capture_id=capture_id,
+                                timestamp=timestamp,
+                                face_index=face_index
+                            )
+                            face_index += 1
 
     except Exception as e:
         logger.error(f"Fatal error in main loop: {e}", exc_info=True)

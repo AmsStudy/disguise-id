@@ -12,11 +12,11 @@ const imageFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
   }
 };
 
-// For watchlist photos and general images (max 5MB)
+// For watchlist photos and general images (max 20MB)
 export const uploadPhoto = multer({
   storage,
   fileFilter: imageFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
 });
 
 // For CCTV frames (max 2MB)

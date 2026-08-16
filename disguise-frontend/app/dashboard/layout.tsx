@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { useAuthStore } from '@/store/authStore';
 import { connectSocket, disconnectSocket } from '@/services/socket';
+import { Toaster } from 'sonner';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -58,6 +59,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .dashboard-main { margin-left: 72px !important; }
         }
       `}</style>
+      
+      <Toaster position="top-right" theme="dark" richColors />
     </div>
   );
 }

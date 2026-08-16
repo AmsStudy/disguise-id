@@ -14,7 +14,8 @@ from app.services.arcface_service import ArcFaceService
 from app.services.reconstruction_service import ReconstructionService
 from app.services.gallery_service import GalleryService
 from app.services.inference_service import InferenceService
-from app.schemas import InferenceResponse
+from app.schemas import InferenceResponse, EmbeddingResponse, FrameProcessResponse
+import time
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -118,7 +119,8 @@ async def infer_face(
     bounding_box_json: str = Form(...),
     landmarks_json: str = Form(None),
     detection_score: float = Form(None),
-    quality_score: float = Form(None)
+    quality_score: float = Form(None),
+    return_server_embedding: bool = Form(False)
 ):
     if not deps.get_gallery_service().prototypes_by_org:
         raise HTTPException(status_code=503, detail="GALLERY_NOT_READY")
@@ -154,7 +156,7 @@ async def infer_face(
                 deps.get_reconstruction_service(),
                 deps.get_gallery_service()
             )
-            response = inference_svc.process_frame(image_rgb, metadata)
+            response = inference_svc.process_frame(image_rgb, metadata, return_server_embedding=return_server_embedding)
         return response
     except ValueError as e:
         if str(e) == "ORG_GALLERY_NOT_LOADED":
@@ -170,3 +172,81 @@ async def infer_face(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"INTERNAL_INFERENCE_ERROR: {str(e)}")
+
+@app.post("/v2/embed", response_model=EmbeddingResponse, dependencies=[Depends(get_api_key)])
+async def embed_endpoint(image: UploadFile = File(...)):
+    """
+    Extracts a 512-dim embedding from an image using ArcFace.
+    This is used during DPO enrollment.
+    """
+    if deps.get_arcface_service() is None:
+        raise HTTPException(status_code=503, detail="Model is not ready")
+
+    try:
+        file_bytes = await image.read()
+        pil_image = Image.open(io.BytesIO(file_bytes))
+        pil_image = ImageOps.exif_transpose(pil_image).convert("RGB")
+        image_rgb = np.asarray(pil_image)
+
+        embedding, metadata = deps.get_arcface_service().detect_and_extract(image_rgb)
+        
+        if embedding is not None:
+            return EmbeddingResponse(
+                face_detected=True,
+                embedding=embedding.tolist(),
+                confidence=metadata.get("det_score")
+            )
+        else:
+            return EmbeddingResponse(face_detected=False, embedding=None, confidence=None)
+    except Exception as e:
+        print(f"Error in /v2/embed: {e}")
+        return EmbeddingResponse(face_detected=False, embedding=None, confidence=None)
+
+@app.post("/v2/process-frame", response_model=FrameProcessResponse, dependencies=[Depends(get_api_key)])
+async def process_frame_endpoint(frame: UploadFile = File(...)):
+    """
+    Processes a face crop from CCTV and returns both original and reconstructed embeddings.
+    """
+    if deps.get_arcface_service() is None or deps.get_reconstruction_service() is None:
+        raise HTTPException(status_code=503, detail="Models are not ready")
+
+    start_time = time.perf_counter()
+    try:
+        file_bytes = await frame.read()
+        pil_image = Image.open(io.BytesIO(file_bytes))
+        pil_image = ImageOps.exif_transpose(pil_image).convert("RGB")
+        image_rgb = np.asarray(pil_image)
+
+        # 1. Original Embedding
+        orig_embed, orig_meta = deps.get_arcface_service().detect_and_extract(image_rgb)
+        
+        orig_embedding_list = orig_embed.tolist() if orig_embed is not None else None
+        confidence = orig_meta.get("det_score") if orig_meta else None
+        face_detected = orig_embed is not None
+
+        # 2. Reconstructed Embedding
+        recon_embedding_list = None
+        if face_detected:
+            recon_rgb, _ = deps.get_reconstruction_service().reconstruct(image_rgb)
+            recon_embed, _ = deps.get_arcface_service().detect_and_extract(recon_rgb)
+            recon_embedding_list = recon_embed.tolist() if recon_embed is not None else None
+
+        processing_ms = (time.perf_counter() - start_time) * 1000.0
+
+        return FrameProcessResponse(
+            face_detected=face_detected,
+            original_embedding=orig_embedding_list,
+            reconstructed_embedding=recon_embedding_list,
+            confidence=confidence,
+            processing_ms=processing_ms
+        )
+    except Exception as e:
+        print(f"Error in /v2/process-frame: {e}")
+        processing_ms = (time.perf_counter() - start_time) * 1000.0
+        return FrameProcessResponse(
+            face_detected=False,
+            original_embedding=None,
+            reconstructed_embedding=None,
+            confidence=None,
+            processing_ms=processing_ms
+        )

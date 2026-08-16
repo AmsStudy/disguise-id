@@ -11,7 +11,7 @@ import {
 } from '../types/ml-v2-review';
 
 export const getMlV2ReviewQueue = async (query: ReviewQueueQuery): Promise<PaginatedResponse<MlV2ReviewQueueItem>> => {
-  const { data } = await api.get<ApiResponse<MlV2ReviewQueueItem[]>>('/api/v1/ml-v2/review-queue', { params: query });
+  const { data } = await api.get<ApiResponse<MlV2ReviewQueueItem[]>>('/ml-v2/review-queue', { params: query });
   if (!data.success || !data.meta) {
     throw new Error('Failed to fetch ML V2 review queue');
   }
@@ -19,7 +19,7 @@ export const getMlV2ReviewQueue = async (query: ReviewQueueQuery): Promise<Pagin
 };
 
 export const getMlV2Reviews = async (query: ReviewsQuery): Promise<PaginatedResponse<MlV2ReviewHistoryItem>> => {
-  const { data } = await api.get<ApiResponse<MlV2ReviewHistoryItem[]>>('/api/v1/ml-v2/reviews', { params: query });
+  const { data } = await api.get<ApiResponse<MlV2ReviewHistoryItem[]>>('/ml-v2/reviews', { params: query });
   if (!data.success || !data.meta) {
     throw new Error('Failed to fetch ML V2 reviews');
   }
@@ -27,7 +27,7 @@ export const getMlV2Reviews = async (query: ReviewsQuery): Promise<PaginatedResp
 };
 
 export const getMlV2ReviewById = async (id: string): Promise<ReviewDetailResponse> => {
-  const { data } = await api.get<ApiResponse<ReviewDetailResponse>>(`/api/v1/ml-v2/reviews/${id}`);
+  const { data } = await api.get<ApiResponse<ReviewDetailResponse>>(`/ml-v2/reviews/${id}`);
   if (!data.success) {
     throw new Error('Failed to fetch ML V2 review detail');
   }
@@ -35,7 +35,7 @@ export const getMlV2ReviewById = async (id: string): Promise<ReviewDetailRespons
 };
 
 export const claimMlV2Review = async (inferenceResultId: string): Promise<MlV2OperatorReview> => {
-  const { data } = await api.post<ApiResponse<MlV2OperatorReview>>(`/api/v1/ml-v2/inference-results/${inferenceResultId}/review`);
+  const { data } = await api.post<ApiResponse<MlV2OperatorReview>>(`/ml-v2/inference-results/${inferenceResultId}/review`);
   if (!data.success) {
     throw new Error('Failed to claim ML V2 review');
   }
@@ -43,7 +43,7 @@ export const claimMlV2Review = async (inferenceResultId: string): Promise<MlV2Op
 };
 
 export const completeMlV2Review = async (reviewId: string, payload: CompleteReviewPayload): Promise<MlV2OperatorReview> => {
-  const { data } = await api.post<ApiResponse<MlV2OperatorReview>>(`/api/v1/ml-v2/reviews/${reviewId}/complete`, payload);
+  const { data } = await api.post<ApiResponse<MlV2OperatorReview>>(`/ml-v2/reviews/${reviewId}/complete`, payload);
   if (!data.success) {
     throw new Error('Failed to complete ML V2 review');
   }

@@ -10,6 +10,7 @@ import { SimilarityScore } from '@/components/ui/SimilarityScore';
 import { Button } from '@/components/ui/Button';
 import { formatRelative } from '@/utils/format';
 import { alertApi } from '@/services/api';
+import { useAlertStore } from '@/store/alertStore';
 
 const statusLabels: Record<string, string> = {
   pending: 'Pending',
@@ -89,7 +90,7 @@ const AlertDetailModal: React.FC<{
               </div>
               <div style={{ width: '100%', height: '180px', borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,151,178,0.1)', border: '1px solid rgba(0, 151, 178, 0.3)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {faceCrop ? (
-                  <img src={faceCrop} alt="Live CCTV Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={faceCrop} alt="Live CCTV Capture" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                 ) : (
                   <FontAwesomeIcon icon={faUser} style={{ fontSize: '48px', color: '#00CFE8', opacity: 0.5 }} />
                 )}
@@ -106,7 +107,7 @@ const AlertDetailModal: React.FC<{
               </div>
               <div style={{ width: '100%', height: '180px', borderRadius: '12px', overflow: 'hidden', background: 'rgba(255, 107, 53, 0.1)', border: '1px solid rgba(255, 107, 53, 0.3)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {personPhoto ? (
-                  <img src={personPhoto} alt="Database Reference" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={personPhoto} alt="Database Reference" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                     <FontAwesomeIcon icon={faUser} style={{ fontSize: '44px', color: '#FF6B35', opacity: 0.6 }} />
@@ -214,7 +215,7 @@ const AlertDetailModal: React.FC<{
 };
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<any[]>([]);
+  const { alerts, setAlerts, deleteAlert, markRead } = useAlertStore();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
@@ -224,11 +225,7 @@ export default function AlertsPage() {
   const fetchAlerts = async () => {
     try {
       setLoading(true);
-      const res = await alertApi.list({ 
-        status: filterStatus !== 'all' ? filterStatus : undefined,
-        priority: filterPriority !== 'all' ? filterPriority : undefined,
-        limit: 100
-      });
+      const res = await alertApi.list({ limit: 100 });
       if (res.data && res.data.data) {
         // Best-Shot promotion: collapse repeated captures of the same suspect within a 10-minute window into their clearest, highest-accuracy photo
         const bestShots = new Map<string, any>();
@@ -246,13 +243,12 @@ export default function AlertsPage() {
         const cleanAlerts = Array.from(bestShots.values());
         setAlerts(cleanAlerts);
         
+        
         // Update stats based on fetched data
-        if (filterStatus === 'all') {
-           const p = cleanAlerts.filter((a: any) => a.status === 'pending').length;
-           const c = cleanAlerts.filter((a: any) => a.status === 'confirmed').length;
-           const d = cleanAlerts.filter((a: any) => a.status === 'dismissed').length;
-           setStats({ pending: p, confirmed: c, dismissed: d });
-        }
+        const p = cleanAlerts.filter((a: any) => a.status === 'pending').length;
+        const c = cleanAlerts.filter((a: any) => a.status === 'confirmed').length;
+        const d = cleanAlerts.filter((a: any) => a.status === 'dismissed').length;
+        setStats({ pending: p, confirmed: c, dismissed: d });
       }
     } catch (err) {
       console.error('Failed to fetch alerts', err);
@@ -263,12 +259,16 @@ export default function AlertsPage() {
 
   useEffect(() => {
     fetchAlerts();
-  }, [filterStatus, filterPriority]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAction = async (id: string, action: 'confirmed' | 'dismissed') => {
     try {
       await alertApi.update(id, { status: action });
-      setAlerts((prev) => prev.map((a) => a.id === id ? { ...a, status: action } : a));
+      
+      const updatedAlerts = alerts.map((a) => a.id === id ? { ...a, status: action } : a);
+      setAlerts(updatedAlerts);
+      markRead(id);
       
       // Update stats optimistically
       setStats((prev) => ({
@@ -286,7 +286,7 @@ export default function AlertsPage() {
     try {
       await alertApi.delete(id);
       const targetAlert = alerts.find((a) => a.id === id);
-      setAlerts((prev) => prev.filter((a) => a.id !== id));
+      deleteAlert(id);
 
       if (targetAlert) {
         const st = targetAlert.status as 'pending' | 'confirmed' | 'dismissed';
@@ -370,11 +370,14 @@ export default function AlertsPage() {
 
       {/* Alert list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {loading ? (
+        {loading && alerts.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#4A6B84' }}>Memuat data...</div>
         ) : (
           <AnimatePresence>
-            {alerts.map((alert) => (
+            {alerts
+              .filter(a => filterStatus === 'all' || a.status === filterStatus)
+              .filter(a => filterPriority === 'all' || a.priority === filterPriority)
+              .map((alert) => (
               <motion.div
                 key={alert.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -415,7 +418,7 @@ export default function AlertsPage() {
                         }}
                       >
                         {alert.detectionEvent?.faceCropUrl ? (
-                           <img src={alert.detectionEvent.faceCropUrl} alt="Face" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                           <img src={alert.detectionEvent.faceCropUrl} alt="Face" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" decoding="async" />
                         ) : (
                            <FontAwesomeIcon icon={faUser} style={{ color: '#00CFE8' }} />
                         )}
@@ -439,9 +442,9 @@ export default function AlertsPage() {
                           <span style={{ fontWeight: 700, fontSize: '15px', color: '#E8F4F8', fontFamily: 'Inter, sans-serif' }}>
                             {alert.person?.fullName || 'Unknown Target'}
                           </span>
-                          {alert.person?.aliases?.length > 0 && (
+                          {(alert.person?.aliases?.length ?? 0) > 0 && (
                             <span style={{ color: '#00CFE8', fontSize: '12px', background: 'rgba(0, 229, 255, 0.1)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(0, 229, 255, 0.2)' }}>
-                              "{alert.person.aliases[0]}"
+                              "{alert.person.aliases![0]}"
                             </span>
                           )}
                           {alert.status === 'pending' && (
@@ -458,7 +461,7 @@ export default function AlertsPage() {
 
                     {/* Center: Forensic Accuracy Score & Status Badge */}
                     <div className="alert-card-center">
-                      <SimilarityScore score={alert.similarityScore} size="md" showBar />
+                      <SimilarityScore score={alert.similarityScore ?? alert.similarity ?? 0} size="md" showBar />
                       <Badge variant={alert.status === 'confirmed' ? 'online' : alert.status === 'dismissed' ? 'default' : 'high'}>
                         {statusLabels[alert.status] || alert.status.toUpperCase()}
                       </Badge>

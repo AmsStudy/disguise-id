@@ -9,3 +9,4 @@ cameraAgentRouter.use(cameraAgentAuth);
 
 cameraAgentRouter.get('/config', cameraAgentController.getConfig);
 cameraAgentRouter.post('/heartbeat', cameraAgentController.reportHeartbeat);
+cameraAgentRouter.post('/tracking', cameraAgentController.reportLiveTracking);

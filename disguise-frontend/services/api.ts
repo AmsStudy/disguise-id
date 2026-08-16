@@ -55,7 +55,7 @@ export const cameraApi = {
   delete: (id: string) => api.delete(`/cameras/${id}`),
   testConnection: (id: string) => api.post(`/cameras/${id}/test-connection`),
   preview: (id: string) => api.get(`/cameras/${id}/preview`, { responseType: 'blob' }),
-  getHealth: (id: string) => api.get(`/cameras/${id}/health`),
+  getHealth: (id: string) => api.get(`/cameras/${id}`),
 };
 
 // Alerts

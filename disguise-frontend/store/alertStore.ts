@@ -29,7 +29,13 @@ export const useAlertStore = create<AlertStore>((set) => ({
           const newDist = Math.abs(Number(newAlert.similarityScore || newAlert.similarity || newAlert.distance || 999));
 
           // If the new frame has stronger accuracy (smaller Euclidean distance) or is newer, upgrade the photo and score!
-          const bestAlert = newDist <= existingDist ? { ...existing, ...newAlert } : existing;
+          // Bug Fix: WebSocket sends 'detection' but UI expects 'detectionEvent'
+          const mappedNewAlert = { ...newAlert };
+          if (mappedNewAlert.detection) {
+            mappedNewAlert.detectionEvent = mappedNewAlert.detection;
+          }
+          
+          const bestAlert = newDist <= existingDist ? { ...existing, ...mappedNewAlert } : existing;
           
           // Re-order to float the dynamically upgraded alert to the top without increasing unread spam
           const remainingAlerts = state.alerts.filter((_, idx) => idx !== existingIdx);

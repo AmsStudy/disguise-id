@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Button } from '../ui/Button';
 import { MlV2StatusBadge } from './MlV2StatusBadge';
 import { MlV2InferenceResult } from '../../types/ml-v2';
 
@@ -14,115 +13,272 @@ interface MlV2TableProps {
   onViewDetail: (id: string) => void;
 }
 
-export const MlV2Table: React.FC<MlV2TableProps> = ({ 
-  data, 
-  isLoading, 
-  page, 
-  totalPages, 
-  onPageChange, 
-  onViewDetail 
+const thStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  fontSize: '10px',
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'rgba(255,255,255,0.35)',
+  whiteSpace: 'nowrap',
+  textAlign: 'left',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '13px 16px',
+  fontSize: '13px',
+  color: 'rgba(255,255,255,0.7)',
+  verticalAlign: 'middle',
+};
+
+export const MlV2Table: React.FC<MlV2TableProps> = ({
+  data,
+  isLoading,
+  page,
+  totalPages,
+  onPageChange,
+  onViewDetail,
 }) => {
   if (isLoading) {
     return (
-      <div className="bg-[#151c2c] border border-white/5 rounded-xl p-4">
-        <div className="animate-pulse flex flex-col gap-4">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="h-10 bg-white/5 rounded-md" />
+      <div style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '16px',
+        overflow: 'hidden',
+      }}>
+        {/* Skeleton header */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', gap: '32px' }}>
+          {['200px', '100px', '130px', '200px', '150px', '100px', '80px'].map((w, i) => (
+            <div key={i} style={{ height: '12px', width: w, background: 'rgba(255,255,255,0.05)', borderRadius: '4px', animation: 'pulse 2s ease-in-out infinite', animationDelay: `${i * 0.1}s` }} />
           ))}
         </div>
+        {/* Skeleton rows */}
+        {[...Array(7)].map((_, i) => (
+          <div key={i} style={{ padding: '14px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', display: 'flex', gap: '32px', alignItems: 'center' }}>
+            {['200px', '80px', '110px', '180px', '140px', '90px', '60px'].map((w, j) => (
+              <div key={j} style={{ height: '10px', width: w, background: 'rgba(255,255,255,0.04)', borderRadius: '4px', animation: 'pulse 2s ease-in-out infinite', animationDelay: `${(i * 0.05) + (j * 0.03)}s` }} />
+            ))}
+          </div>
+        ))}
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-[#151c2c] border border-white/5 rounded-xl p-12 flex flex-col items-center justify-center text-gray-400">
-        <svg className="w-12 h-12 mb-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <p className="text-lg">No data available</p>
-        <p className="text-sm mt-1">Adjust filters or refresh to see recent inferences.</p>
+      <div style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: '16px',
+        padding: '64px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '12px',
+      }}>
+        <div style={{
+          width: '56px', height: '56px',
+          background: 'rgba(255,255,255,0.04)',
+          borderRadius: '16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          marginBottom: '4px',
+        }}>
+          <svg style={{ width: '24px', height: '24px', color: 'rgba(255,255,255,0.2)' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        </div>
+        <div style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>No telemetry data</div>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
+          Adjust your filters or wait for new inference results.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#151c2c] border border-white/5 rounded-xl overflow-hidden flex flex-col">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-300">
-          <thead className="text-xs text-gray-400 uppercase bg-[#1e2638]">
-            <tr>
-              <th className="px-4 py-3 font-medium">Created At</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Decision</th>
-              <th className="px-4 py-3 font-medium">Candidate ID</th>
-              <th className="px-4 py-3 font-medium">Score / Margin</th>
-              <th className="px-4 py-3 font-medium text-center">Verification</th>
-              <th className="px-4 py-3 font-medium text-right">Actions</th>
+    <div style={{
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>
+              <th style={thStyle}>Timestamp</th>
+              <th style={thStyle}>Status</th>
+              <th style={thStyle}>Decision</th>
+              <th style={thStyle}>Candidate ID</th>
+              <th style={thStyle}>Score / Margin</th>
+              <th style={{ ...thStyle, textAlign: 'center' }}>Verification</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Detail</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((item) => (
-              <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {new Date(item.createdAt).toLocaleString()}
+            {data.map((item, rowIdx) => (
+              <tr
+                key={item.id}
+                style={{
+                  borderBottom: rowIdx < data.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                {/* Timestamp */}
+                <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                  {new Date(item.createdAt).toLocaleString('en-GB', {
+                    day: '2-digit', month: 'short', year: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                  })}
                 </td>
-                <td className="px-4 py-3">
+
+                {/* Status */}
+                <td style={tdStyle}>
                   <MlV2StatusBadge type="status" status={item.status} />
                 </td>
-                <td className="px-4 py-3">
+
+                {/* Decision */}
+                <td style={tdStyle}>
                   <MlV2StatusBadge type="frameDecision" frameDecision={item.frameDecision} />
                 </td>
-                <td className="px-4 py-3 font-mono text-xs">
-                  {item.frameDecision === 'UNKNOWN' ? (
-                    <span className="text-gray-500 line-through" title="Nearest candidate telemetry only">{item.candidateId || 'N/A'}</span>
+
+                {/* Candidate ID */}
+                <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                  {item.candidateId ? (
+                    <span style={{ color: item.frameDecision === 'UNKNOWN' ? 'rgba(255,255,255,0.25)' : '#00E5FF', textDecoration: item.frameDecision === 'UNKNOWN' ? 'line-through' : 'none' }}>
+                      {item.candidateId.slice(0, 8)}…
+                    </span>
                   ) : (
-                    <span className={item.candidateId ? 'text-cyan-400' : 'text-gray-500'}>{item.candidateId || 'N/A'}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-400">
-                  {item.score !== null ? item.score.toFixed(4) : 'N/A'} / {item.margin !== null ? item.margin.toFixed(4) : 'N/A'}
+
+                {/* Score / Margin */}
+                <td style={{ ...tdStyle, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.65)' }}>
+                    {item.score !== null ? item.score.toFixed(4) : <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>}
+                  </span>
+                  <span style={{ margin: '0 6px', color: 'rgba(255,255,255,0.15)' }}>/</span>
+                  <span style={{ color: 'rgba(255,255,255,0.65)' }}>
+                    {item.margin !== null ? item.margin.toFixed(4) : <span style={{ color: 'rgba(255,255,255,0.2)' }}>—</span>}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-center">
+
+                {/* Verification */}
+                <td style={{ ...tdStyle, textAlign: 'center' }}>
                   {item.requiresOperatorVerification ? (
-                    <span className="text-yellow-500 font-bold">YES</span>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      padding: '3px 8px', borderRadius: '6px',
+                      background: 'rgba(255,179,0,0.12)',
+                      border: '1px solid rgba(255,179,0,0.25)',
+                      color: '#FFB300',
+                      fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+                    }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#FFB300', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      Required
+                    </span>
                   ) : (
-                    <span className="text-gray-600">NO</span>
+                    <span style={{ color: 'rgba(255,255,255,0.15)' }}>—</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right">
-                  <Button variant="secondary" onClick={() => onViewDetail(item.id)} className="px-2 py-1 text-xs">
+
+                {/* Detail Button */}
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <button
+                    onClick={() => onViewDetail(item.id)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      fontSize: '11px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
+                      color: 'rgba(255,255,255,0.35)',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      borderRadius: '7px',
+                      padding: '5px 10px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.color = '#00E5FF';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,229,255,0.4)';
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.06)';
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.35)';
+                      (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+                    }}
+                  >
                     View
-                  </Button>
+                    <svg style={{ width: '11px', height: '11px' }} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      
+
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="p-4 border-t border-white/5 flex items-center justify-between bg-[#1e2638]">
-          <span className="text-sm text-gray-400">
-            Page {page} of {totalPages}
+        <div style={{
+          padding: '12px 16px',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: 'rgba(255,255,255,0.01)',
+        }}>
+          <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>
+            Page <span style={{ color: 'white', fontWeight: 600 }}>{page}</span> of {totalPages}
           </span>
-          <div className="flex gap-2">
-            <Button 
-              variant="secondary" 
-              onClick={() => onPageChange(page - 1)} 
-              disabled={page <= 1}
-              className="px-3 py-1 text-xs"
-            >
-              Previous
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={() => onPageChange(page + 1)} 
-              disabled={page >= totalPages}
-              className="px-3 py-1 text-xs"
-            >
-              Next
-            </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[
+              { label: '← Prev', action: () => onPageChange(page - 1), disabled: page <= 1 },
+              { label: 'Next →', action: () => onPageChange(page + 1), disabled: page >= totalPages },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.action}
+                disabled={btn.disabled}
+                style={{
+                  padding: '5px 14px',
+                  borderRadius: '8px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  cursor: btn.disabled ? 'not-allowed' : 'pointer',
+                  opacity: btn.disabled ? 0.3 : 1,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.6)',
+                  transition: 'all 0.2s',
+                  pointerEvents: btn.disabled ? 'none' : 'auto',
+                }}
+                onMouseEnter={e => {
+                  if (!btn.disabled) {
+                    (e.currentTarget as HTMLElement).style.background = 'rgba(0,229,255,0.08)';
+                    (e.currentTarget as HTMLElement).style.borderColor = 'rgba(0,229,255,0.3)';
+                    (e.currentTarget as HTMLElement).style.color = '#00E5FF';
+                  }
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                  (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)';
+                  (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)';
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
         </div>
       )}

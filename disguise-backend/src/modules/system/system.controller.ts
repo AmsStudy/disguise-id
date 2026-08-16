@@ -9,8 +9,9 @@ export class SystemController {
       let reason = 'MEDIAMTX_UNAVAILABLE';
       
       try {
+        const mtxApiUrl = process.env.MEDIAMTX_API_URL || 'http://127.0.0.1:9997';
         // Backend proxies the health check to MediaMTX
-        await axios.get('http://localhost:9997/v3/config/global/read', { timeout: 2000 });
+        await axios.get(`${mtxApiUrl}/v3/paths/list`, { timeout: 2000 });
         available = true;
         reason = 'OK';
       } catch (err: any) {

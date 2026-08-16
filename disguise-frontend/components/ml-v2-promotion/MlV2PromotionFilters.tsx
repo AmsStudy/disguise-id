@@ -14,6 +14,29 @@ interface MlV2PromotionFiltersProps {
   onReset: () => void;
 }
 
+const labelStyle: React.CSSProperties = {
+  fontSize: '11px',
+  fontWeight: 600,
+  color: 'rgba(255,255,255,0.4)',
+  letterSpacing: '0.05em',
+  textTransform: 'uppercase',
+  marginBottom: '6px',
+};
+
+const selectStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.03)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '8px',
+  padding: '8px 12px',
+  fontSize: '13px',
+  color: 'white',
+  outline: 'none',
+  appearance: 'none',
+  cursor: 'pointer',
+  transition: 'border-color 0.2s',
+};
+
 export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
   mode,
   queueFilters,
@@ -22,11 +45,9 @@ export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
   onHistoryChange,
   onReset,
 }) => {
-  // Local state for debouncing inputs
   const [localQueueCandidate, setLocalQueueCandidate] = useState(queueFilters.reviewedCandidateId || '');
   const [localHistoryCandidate, setLocalHistoryCandidate] = useState(historyFilters.promotedCandidateId || '');
 
-  // Debounce candidate IDs
   useEffect(() => {
     const timer = setTimeout(() => {
       if (mode === 'queue' && localQueueCandidate !== queueFilters.reviewedCandidateId) {
@@ -38,7 +59,6 @@ export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
     return () => clearTimeout(timer);
   }, [localQueueCandidate, localHistoryCandidate, mode, queueFilters, historyFilters, onQueueChange, onHistoryChange]);
 
-  // Sync back from props
   useEffect(() => {
     setLocalQueueCandidate(queueFilters.reviewedCandidateId || '');
   }, [queueFilters.reviewedCandidateId]);
@@ -48,44 +68,67 @@ export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
   }, [historyFilters.promotedCandidateId]);
 
   return (
-    <div className="bg-[#151c2c] border border-white/5 rounded-xl p-4 flex flex-col gap-4">
-      <div className="flex justify-between items-center border-b border-white/5 pb-2">
-        <h3 className="text-sm font-semibold text-gray-300">Filters</h3>
-        <Button variant="secondary" size="sm" onClick={onReset}>Clear Filters</Button>
+    <div style={{
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: '16px',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontSize: '11px', fontWeight: 700, color: 'white', letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>
+          Filters
+        </h3>
+        <button
+          onClick={onReset}
+          style={{
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+            padding: '5px 12px', borderRadius: '6px', color: 'rgba(255,255,255,0.7)',
+            fontSize: '11px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLElement).style.color = 'white'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.7)'; }}
+        >
+          Clear All
+        </button>
       </div>
 
       {mode === 'queue' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Reviewed Candidate ID</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Reviewed Candidate ID</label>
             <Input
               placeholder="e.g. DID001"
               value={localQueueCandidate}
               onChange={(e) => setLocalQueueCandidate(e.target.value)}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Reviewer UUID</label>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Reviewer UUID</label>
             <Input
               placeholder="Exact UUID"
               value={queueFilters.reviewerId || ''}
               onChange={(e) => onQueueChange({ ...queueFilters, reviewerId: e.target.value || undefined, page: 1 })}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Original Frame Decision</label>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Original Frame Decision</label>
             <select
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              style={selectStyle}
               value={queueFilters.frameDecision || ''}
               onChange={(e) => onQueueChange({ ...queueFilters, frameDecision: e.target.value || undefined, page: 1 })}
             >
-              <option value="">All</option>
-              <option value="HIGH_PRIORITY_CANDIDATE">HIGH_PRIORITY_CANDIDATE</option>
-              <option value="POSSIBLE_MATCH">POSSIBLE_MATCH</option>
+              <option value="" style={{ color: 'black' }}>All</option>
+              <option value="HIGH_PRIORITY_CANDIDATE" style={{ color: 'black' }}>HIGH_PRIORITY_CANDIDATE</option>
+              <option value="POSSIBLE_MATCH" style={{ color: 'black' }}>POSSIBLE_MATCH</option>
             </select>
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Reviewed From</label>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Reviewed From</label>
             <Input
               type="date"
               value={queueFilters.reviewedFrom ? queueFilters.reviewedFrom.split('T')[0] : ''}
@@ -94,29 +137,32 @@ export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
                 reviewedFrom: e.target.value ? new Date(e.target.value).toISOString() : undefined,
                 page: 1
               })}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', colorScheme: 'dark' }}
             />
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Promoted Candidate ID</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Promoted Candidate ID</label>
             <Input
               placeholder="e.g. DID001"
               value={localHistoryCandidate}
               onChange={(e) => setLocalHistoryCandidate(e.target.value)}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Promoter UUID</label>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Promoter UUID</label>
             <Input
               placeholder="Exact UUID"
               value={historyFilters.promotedById || ''}
               onChange={(e) => onHistoryChange({ ...historyFilters, promotedById: e.target.value || undefined, page: 1 })}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">Promoted From</label>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={labelStyle}>Promoted From</label>
             <Input
               type="date"
               value={historyFilters.promotedFrom ? historyFilters.promotedFrom.split('T')[0] : ''}
@@ -125,6 +171,7 @@ export const MlV2PromotionFilters: React.FC<MlV2PromotionFiltersProps> = ({
                 promotedFrom: e.target.value ? new Date(e.target.value).toISOString() : undefined,
                 page: 1
               })}
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', colorScheme: 'dark' }}
             />
           </div>
         </div>

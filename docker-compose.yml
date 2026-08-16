@@ -1,0 +1,163 @@
+services:
+  # ─── 1. INFRASTRUCTURE ──────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: disguise-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: disguiseid
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: disguise-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: disguise-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: disguise-mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"
+      - "1935:1935"
+      - "8888:8888"
+      - "8889:8889"
+      - "8189:8189/udp"
+      - "9997:9997"
+    volumes:
+      - ./infrastructure/mediamtx.yml:/mediamtx.yml
+
+  # ─── 2. ML SERVICE V2 ────────────────────────────────────────
+  ml-service:
+    build:
+      context: ./ml-service-v2
+      dockerfile: Dockerfile
+    container_name: disguise-ml-service
+    restart: unless-stopped
+    ports:
+      - "8000:8001"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8001
+    # Uncomment the below block if you have an NVIDIA GPU setup for Docker
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ─── 3. BACKEND (Express Node.js) ────────────────────────────
+  backend:
+    build:
+      context: ./disguise-backend
+      dockerfile: Dockerfile
+    container_name: disguise-backend
+    restart: unless-stopped
+    ports:
+      - "3002:3000" # Expose internally 3000 to externally 3002
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/disguiseid
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_PUBLIC_URL=http://localhost:9000
+      - JWT_SECRET=super_secret_for_dev
+      - ML_SERVICE_V2_URL=http://ml-service:8001
+      - ML_SERVICE_V2_ENABLED=true
+      - ML_SERVICE_API_KEY=HKfZ0TP2Vei9Vtx88rPckAG6b4mZSSS5qqkxUKK6ib0SQSmrPQ_Wt2A2n1XTgotA
+      - ML_SERVICE_V2_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
+      - CAMERA_CREDENTIAL_ENCRYPTION_ENABLED=true
+      - CAMERA_CREDENTIAL_KEY_VERSION=v1
+      - CAMERA_CREDENTIAL_KEY_BASE64=ISzqe6KmlEjDs/nSiKl4us1y8PdGyy5zhyUAIWZdebY=
+      - MEDIAMTX_API_URL=http://mediamtx:9997
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── 4. FRONTEND (Next.js) ───────────────────────────────────
+  frontend:
+    build:
+      context: ./disguise-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3002
+        NEXT_PUBLIC_WS_URL: ws://localhost:3002
+    container_name: disguise-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3002
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3002
+    depends_on:
+      - backend
+
+  # ─── 5. CAMERA AGENT (Python CCTV Simulator) ─────────────────
+  camera-agent:
+    build:
+      context: ./camera-agent
+      dockerfile: Dockerfile
+    container_name: disguise-camera-agent
+    restart: unless-stopped
+    environment:
+      - API_URL=http://backend:3000/api/v1
+      - WEBSOCKET_URL=ws://backend:3000
+      - RTSP_SERVER_URL=rtsp://mediamtx:8554
+      - CAMERA_ID=simulated-cam-01
+      - CAMERA_NAME=CCTV Utama
+    depends_on:
+      - backend
+      - mediamtx
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

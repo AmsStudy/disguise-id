@@ -38,7 +38,7 @@ class InferenceService:
             return "POSSIBLE_MATCH"
         return "UNKNOWN"
 
-    def process_frame(self, image_rgb: np.ndarray, metadata: dict) -> InferenceResponse:
+    def process_frame(self, image_rgb: np.ndarray, metadata: dict, return_server_embedding: bool = False) -> InferenceResponse:
         start_time = time.perf_counter()
         
         organization_id = metadata.get("organization_id", "").strip()
@@ -58,6 +58,8 @@ class InferenceService:
         try:
             orig_embed, orig_meta = self.arcface.detect_and_extract(face_crop_rgb)
             if orig_embed is not None:
+                if return_server_embedding:
+                    orig_res.server_embedding = orig_embed.tolist()
                 ranked = self.gallery.rank_identities(organization_id, orig_embed, settings.top_k)
                 if ranked:
                     orig_res.valid = True

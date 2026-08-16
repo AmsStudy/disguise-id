@@ -101,7 +101,7 @@ export class InferenceController {
       ]);
 
       // Pack them into metadata for the inference queue
-      const metadata = {
+      const metadata: any = {
         detected_at: timestamp,
         confidence: parseFloat(confidence),
         face_index: parseInt(fIndex, 10),
@@ -116,6 +116,39 @@ export class InferenceController {
           h: parseInt(frame_h, 10)
         }
       };
+
+      const { edge_embedding, edge_embedding_metadata } = req.body;
+      if (edge_embedding) {
+        try {
+          const { edgeEmbeddingMetadataSchema } = require('../../types/edge-metadata.types');
+          const arr = JSON.parse(edge_embedding);
+          if (Array.isArray(arr) && arr.length === 512 && arr.every(n => typeof n === 'number' && Number.isFinite(n))) {
+            const parsedEdgeMetadata = edge_embedding_metadata ? JSON.parse(edge_embedding_metadata) : {};
+            const validatedMetadata = edgeEmbeddingMetadataSchema.parse(parsedEdgeMetadata);
+            // Re-calculate norm server-side safely
+            let sumSq = 0;
+            for (let i = 0; i < 512; i++) {
+              sumSq += arr[i] * arr[i];
+            }
+            const norm = Math.sqrt(sumSq);
+            if (norm > 0) {
+              metadata.edge_embedding = arr;
+              metadata.edge_embedding_metadata = { ...validatedMetadata, server_calculated_norm: norm };
+              metadata.edge_embedding_status = 'valid';
+            } else {
+              metadata.edge_embedding_status = 'invalid_zero_norm';
+            }
+          } else {
+            metadata.edge_embedding_status = arr.length !== 512 ? 'invalid_dimension' : 'invalid_numeric';
+          }
+        } catch (e) {
+          metadata.edge_embedding_status = 'invalid_metadata';
+          logger.warn('Failed to parse edge embedding', { capture_id, error: e });
+        }
+      } else {
+        metadata.edge_embedding_status = 'absent';
+      }
+
 
       // 6. Enqueue inference job (BullMQ uses jobId for deduplication)
 

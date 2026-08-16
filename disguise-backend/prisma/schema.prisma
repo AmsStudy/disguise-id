@@ -111,10 +111,28 @@ model User {
   mlV2MappingsApproved       MlV2CandidateMapping[]  @relation("MappingApprover")
   mlV2MappingsRejected       MlV2CandidateMapping[]  @relation("MappingRejector")
   mlV2MappingsRevoked        MlV2CandidateMapping[]  @relation("MappingRevoker")
+  deviceTokens               DeviceToken[]
 
   @@index([organizationId], name: "idx_users_org")
   @@index([email], name: "idx_users_email")
   @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Device Tokens (Mobile FCM Push Notifications)
+// ─────────────────────────────────────────────────────────────
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique @db.VarChar(512)
+  platform  String   @db.VarChar(50) // android, ios, web
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "idx_device_tokens_user")
+  @@map("device_tokens")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -165,6 +183,7 @@ model WatchlistPerson {
   dangerLevel    String    @default("medium") @map("danger_level") @db.VarChar(50)
   caseReference  String?   @map("case_reference") @db.VarChar(255)
   photoUrl       String?   @map("photo_url")
+  embedding      Unsupported("vector(512)")?
   // Note: embedding (vector) managed via raw SQL / Prisma extensions
   embeddingModel String    @default("v1") @map("embedding_model") @db.VarChar(50)
   isActive       Boolean   @default(true) @map("is_active")
@@ -191,6 +210,7 @@ model WatchlistPhoto {
   id             String    @id @default(uuid())
   personId       String    @map("person_id")
   photoUrl       String    @map("photo_url")
+  embedding      Unsupported("vector(512)")?
   embeddingModel String    @default("v1") @map("embedding_model") @db.VarChar(50)
   isPrimary      Boolean   @default(false) @map("is_primary")
   source         String?   @db.VarChar(100)
@@ -214,6 +234,7 @@ model DetectionEvent {
   sourceId       String   @map("source_id")
   frameUrl       String?  @map("frame_url")
   faceCropUrl    String?  @map("face_crop_url")
+  embedding      Unsupported("vector(512)")?
   // embedding stored via raw SQL
   bestMatchId    String?  @map("best_match_id")
   bestMatchSim   Decimal? @map("best_match_sim") @db.Decimal(6, 5)

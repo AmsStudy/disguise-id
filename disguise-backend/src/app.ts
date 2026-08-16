@@ -24,6 +24,7 @@ import gallerySyncRouter from './modules/gallery-sync/gallery-sync.router';
 import candidateMappingRouter from './modules/candidate-mapping/candidate-mapping.router';
 import { cameraAgentRouter } from './modules/camera-agent/camera-agent.router';
 import { systemRouter } from './modules/system/system.router';
+import { mobileRouter } from './routes/mobile.v1';
 
 const app = express();
 
@@ -93,6 +94,9 @@ app.use(`${API_PREFIX}/ml-v2`, mlV2Router);
 app.use(`${API_PREFIX}/detection-events`, detectionEventMlV2Router);
 app.use(`${API_PREFIX}/camera-agent`, cameraAgentRouter);
 app.use(`${API_PREFIX}/system`, systemRouter);
+
+// Mobile API Routes (Prefix: /api/v1/mobile)
+app.use(`${API_PREFIX}/mobile`, mobileRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────
 app.use((_req, res) => {

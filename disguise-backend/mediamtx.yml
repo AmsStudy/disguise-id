@@ -5,6 +5,6 @@ rtsp: yes
 rtmp: yes
 hls: yes
 paths:
-  "b3e02619-0023-4086-a95e-35ebe15caff7":
+  "e7152ff4-88cb-407b-84cc-7473ddd381e0":
     source: "rtsp://disguise:disguise-id123@172.125.0.201:554/stream1"
     sourceProtocol: tcp

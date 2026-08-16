@@ -34,8 +34,9 @@ class MLServiceV2Client {
       landmarks_json?: string;
       detection_score?: number;
       quality_score?: number;
+      return_server_embedding?: boolean;
     }
-  ): Promise<V2InferenceResponse | Error | null> {
+  ): Promise<{ data: V2InferenceResponse | null; error: MLServiceV2Error | null; logEntry: V2ShadowLogEntry } | null> {
     if (!mlServiceV2Config.enabled) {
       return null;
     }
@@ -67,6 +68,7 @@ class MLServiceV2Client {
       if (metadata.landmarks_json) form.append('landmarks_json', metadata.landmarks_json);
       if (metadata.detection_score !== undefined) form.append('detection_score', metadata.detection_score.toString());
       if (metadata.quality_score !== undefined) form.append('quality_score', metadata.quality_score.toString());
+      if (metadata.return_server_embedding) form.append('return_server_embedding', 'true');
 
       const response = await this.client.post('/v2/infer-face', form, {
         headers: {
@@ -108,21 +110,18 @@ class MLServiceV2Client {
       logEntry.score = this.cleanNumber(data.score);
       logEntry.margin = this.cleanNumber(data.margin);
 
-      return data;
+      return { data, error: null, logEntry };
     } catch (error) {
       const v2Error = this.handleAxiosError(error);
       logEntry.errorCode = v2Error.code;
       logEntry.reason = v2Error.message;
-      // Intentionally do not throw further unless explicitly requested,
-      // as this is a shadow worker that shouldn't disrupt V1 pipeline.
       if (mlServiceV2Config.failJob) {
         logger.error(`V2 shadow inference explicitly failed job ${jobId}`, v2Error);
         throw v2Error;
       }
-      return v2Error;
+      return { data: null, error: v2Error, logEntry };
     } finally {
       logEntry.latency_ms = Date.now() - startTime;
-      mlServiceV2Logger.log(logEntry);
     }
   }
 

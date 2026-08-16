@@ -9,6 +9,7 @@ class BranchResult(BaseModel):
     margin: Optional[float] = None
     detection_score: Optional[float] = None
     reconstruction_ms: Optional[float] = None
+    server_embedding: Optional[List[float]] = None
     error: Optional[str] = None
 
 class InferenceResponse(BaseModel):
@@ -32,3 +33,15 @@ class InferenceResponse(BaseModel):
     frame_decision: str
     processing_ms: float
     requires_operator_verification: bool = True
+
+class EmbeddingResponse(BaseModel):
+    face_detected: bool
+    embedding: Optional[List[float]] = Field(None, max_length=512, min_length=512)
+    confidence: Optional[float] = None
+
+class FrameProcessResponse(BaseModel):
+    face_detected: bool
+    original_embedding: Optional[List[float]] = Field(None, max_length=512, min_length=512)
+    reconstructed_embedding: Optional[List[float]] = Field(None, max_length=512, min_length=512)
+    confidence: Optional[float] = None
+    processing_ms: float

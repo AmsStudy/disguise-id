@@ -10,7 +10,7 @@ import {
 } from '../types/ml-v2-promotion';
 
 export const getMlV2PromotionQueue = async (query: PromotionQueueQuery): Promise<PaginatedResponse<MlV2PromotionQueueItem>> => {
-  const { data } = await api.get<ApiResponse<MlV2PromotionQueueItem[]>>('/api/v1/ml-v2/promotion-queue', { params: query });
+  const { data } = await api.get<ApiResponse<MlV2PromotionQueueItem[]>>('/ml-v2/promotion-queue', { params: query });
   if (!data.success || !data.meta) {
     throw new Error('Failed to fetch ML V2 promotion queue');
   }
@@ -18,7 +18,7 @@ export const getMlV2PromotionQueue = async (query: PromotionQueueQuery): Promise
 };
 
 export const getMlV2Promotions = async (query: PromotionsQuery): Promise<PaginatedResponse<MlV2ReviewedPromotion>> => {
-  const { data } = await api.get<ApiResponse<MlV2ReviewedPromotion[]>>('/api/v1/ml-v2/promotions', { params: query });
+  const { data } = await api.get<ApiResponse<MlV2ReviewedPromotion[]>>('/ml-v2/promotions', { params: query });
   if (!data.success || !data.meta) {
     throw new Error('Failed to fetch ML V2 promotions');
   }
@@ -26,7 +26,7 @@ export const getMlV2Promotions = async (query: PromotionsQuery): Promise<Paginat
 };
 
 export const getMlV2PromotionById = async (id: string): Promise<PromotionDetailResponse> => {
-  const { data } = await api.get<ApiResponse<PromotionDetailResponse>>(`/api/v1/ml-v2/promotions/${id}`);
+  const { data } = await api.get<ApiResponse<PromotionDetailResponse>>(`/ml-v2/promotions/${id}`);
   if (!data.success) {
     throw new Error('Failed to fetch ML V2 promotion detail');
   }
@@ -34,7 +34,7 @@ export const getMlV2PromotionById = async (id: string): Promise<PromotionDetailR
 };
 
 export const promoteMlV2Review = async (reviewId: string, payload: PromoteReviewPayload): Promise<MlV2ReviewedPromotion> => {
-  const { data } = await api.post<any>(`/api/v1/ml-v2/reviews/${reviewId}/promote`, payload);
+  const { data } = await api.post<any>(`/ml-v2/reviews/${reviewId}/promote`, payload);
   // Special case: This endpoint returns the raw object directly, rather than an envelope.
   if (data && typeof data === 'object' && !('success' in data)) {
     return data;

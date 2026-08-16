@@ -11,6 +11,9 @@ class AgentConfig(BaseModel):
     # Detector settings
     det_size: int = int(os.getenv("DET_SIZE", "640"))
     min_confidence: float = float(os.getenv("MIN_CONFIDENCE", "0.5"))
+    edge_embedding_shadow_enabled: bool = os.getenv("EDGE_EMBEDDING_SHADOW_ENABLED", "false").lower() == "true"
+    face_box_overlay_enabled: bool = os.getenv("FACE_BOX_OVERLAY_ENABLED", "false").lower() == "true"
+    blur_threshold: float = float(os.getenv("BLUR_THRESHOLD", "80.0"))
 
     def validate_config(self):
         if not self.api_key:

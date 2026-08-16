@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { logger } from '../config/logger';
 
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
 const ML_SERVICE_API_KEY = process.env.ML_SERVICE_API_KEY || 'internal-api-key';
 
 export interface EmbeddingResult {
@@ -11,8 +11,9 @@ export interface EmbeddingResult {
 }
 
 export interface FrameProcessResult {
-  embedding: number[] | null;
   face_detected: boolean;
+  original_embedding: number[] | null;
+  reconstructed_embedding: number[] | null;
   face_crop_base64?: string;
   confidence: number | null;
   processing_ms: number;
@@ -38,13 +39,13 @@ export class MlServiceClient {
       const form = new FormData();
       form.append('image', imageBuffer, { filename });
 
-      const response = await this.client.post<EmbeddingResult>('/embed', form, {
+      const response = await this.client.post<EmbeddingResult>('/v2/embed', form, {
         headers: form.getHeaders(),
       });
 
       const result = response.data;
-      if (result.embedding && result.embedding.length !== 128) {
-        throw new Error(`Invalid embedding dimension from ML service: expected 128, got ${result.embedding.length}`);
+      if (result.embedding && result.embedding.length !== 512) {
+        throw new Error(`Invalid embedding dimension from ML service: expected 512, got ${result.embedding.length}`);
       }
       return result;
     } catch (error: unknown) {
@@ -71,13 +72,13 @@ export class MlServiceClient {
       const form = new FormData();
       form.append('frame', imageBuffer, { filename });
 
-      const response = await this.client.post<FrameProcessResult>('/process-frame', form, {
+      const response = await this.client.post<FrameProcessResult>('/v2/process-frame', form, {
         headers: form.getHeaders(),
       });
 
       const result = response.data;
-      if (result.embedding && result.embedding.length !== 128) {
-        throw new Error(`Invalid embedding dimension from ML service: expected 128, got ${result.embedding.length}`);
+      if (result.original_embedding && result.original_embedding.length !== 512) {
+        throw new Error(`Invalid embedding dimension from ML service: expected 512, got ${result.original_embedding.length}`);
       }
       return result;
     } catch (error: unknown) {
@@ -89,8 +90,9 @@ export class MlServiceClient {
         if (error.code === 'ECONNREFUSED') {
           // Return no-face result instead of throwing to allow graceful degradation
           return {
-            embedding: null,
             face_detected: false,
+            original_embedding: null,
+            reconstructed_embedding: null,
             confidence: null,
             processing_ms: 0,
           };

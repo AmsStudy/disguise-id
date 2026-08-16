@@ -150,6 +150,11 @@ export class AuthService {
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
       expires_in: 3600,
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.fullName,
+      }
     };
   }
 

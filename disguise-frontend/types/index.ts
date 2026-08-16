@@ -11,7 +11,9 @@ export interface User {
 export interface WatchlistPerson {
   id: string;
   name: string;
+  fullName?: string;
   alias?: string;
+  aliases?: string[];
   dangerLevel: 'critical' | 'high' | 'medium' | 'low';
   isActive: boolean;
   caseNumber?: string;
@@ -48,13 +50,27 @@ export interface Alert {
   status: 'pending' | 'confirmed' | 'dismissed';
   priority: 'critical' | 'high' | 'medium' | 'low';
   similarity: number;
+  similarityScore?: number;
   faceCropUrl?: string;
   camera: Camera;
   person: WatchlistPerson;
   detectedAt: string;
+  createdAt?: string;
   assignedTo?: User;
   confirmedAt?: string;
   notes?: string;
+  detectionEvent?: {
+    id: string;
+    faceCropUrl?: string;
+    frameUrl?: string;
+    detectedAt: string;
+    processingMs?: number;
+    source?: {
+      id: string;
+      name: string;
+      locationName?: string;
+    };
+  };
 }
 
 export interface Case {
@@ -103,7 +119,10 @@ export interface AnalyticsData {
 export interface LiveDetection {
   cameraId: string;
   faceCropUrl?: string;
-  similarity: number;
+  similarity?: number;
   personName?: string;
   timestamp: string;
+  bboxes?: number[][];
+  frameWidth?: number;
+  frameHeight?: number;
 }

@@ -25,6 +25,26 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
   let adminId1: string;
 
   beforeAll(async () => {
+    // 0. Deterministic cleanup of stale test data
+    const existingOrgs = await prisma.organization.findMany({
+      where: { code: { in: ['ORG1_PROMO', 'ORG2_PROMO'] } }
+    });
+    const existingOrgIds = existingOrgs.map(o => o.id);
+    if (existingOrgIds.length > 0) {
+      await prisma.mlV2ReviewedPromotion.deleteMany({ where: { organizationId: { in: existingOrgIds } } });
+      await prisma.mlV2OperatorReview.deleteMany({ where: { organizationId: { in: existingOrgIds } } });
+      await prisma.mlV2InferenceResult.deleteMany({ where: { detectionEvent: { organizationId: { in: existingOrgIds } } } });
+      await prisma.detectionEvent.deleteMany({ where: { organizationId: { in: existingOrgIds } } });
+      await prisma.cctvSource.deleteMany({ where: { organizationId: { in: existingOrgIds } } });
+
+      const users = await prisma.user.findMany({ where: { organizationId: { in: existingOrgIds } } });
+      const userIds = users.map(u => u.id);
+      await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.user.deleteMany({ where: { organizationId: { in: existingOrgIds } } });
+
+      await prisma.organization.deleteMany({ where: { id: { in: existingOrgIds } } });
+    }
+
     // 1. Create orgs
     const org1 = await prisma.organization.create({ data: { name: 'Org 1', code: 'ORG1_PROMO' } });
     const org2 = await prisma.organization.create({ data: { name: 'Org 2', code: 'ORG2_PROMO' } });
@@ -58,6 +78,11 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       await prisma.mlV2InferenceResult.deleteMany({ where: { detectionEvent: { organizationId: { in: orgs } } } });
       await prisma.detectionEvent.deleteMany({ where: { organizationId: { in: orgs } } });
       await prisma.cctvSource.deleteMany({ where: { organizationId: { in: orgs } } });
+
+      const users = await prisma.user.findMany({ where: { organizationId: { in: orgs } } });
+      const userIds = users.map(u => u.id);
+      await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+
       await prisma.user.deleteMany({ where: { organizationId: { in: orgs } } });
       await prisma.organization.deleteMany({ where: { id: { in: orgs } } });
     }
@@ -72,7 +97,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       await prisma.mlV2InferenceResult.deleteMany({ where: { detectionEvent: { organizationId: { in: orgs } } } });
       await prisma.detectionEvent.deleteMany({ where: { organizationId: { in: orgs } } });
       await prisma.cctvSource.deleteMany({ where: { organizationId: { in: orgs } } });
-      
+
       const adminUsers = await prisma.user.findMany({ where: { organizationId: { in: orgs } } });
       const userIds = adminUsers.map(u => u.id);
       await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
@@ -125,7 +150,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get('/api/v1/ml-v2/promotion-queue')
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0);
     });
@@ -136,7 +161,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get('/api/v1/ml-v2/promotion-queue')
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].id).toBe(review.id);
@@ -148,14 +173,14 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get('/api/v1/ml-v2/promotion-queue')
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0);
     });
 
     it('should NOT return already promoted reviews in the queue', async () => {
       const { review } = await seedConfirmedReview(orgId1, adminId1);
-      
+
       await prisma.mlV2ReviewedPromotion.create({
         data: {
           reviewId: review.id,
@@ -168,7 +193,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get('/api/v1/ml-v2/promotion-queue')
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(0); // Queue should be empty now
     });
@@ -307,7 +332,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get('/api/v1/ml-v2/promotions')
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(1);
       expect(res.body.data[0].reviewId).toBe(review.id);
@@ -327,7 +352,7 @@ describe('Phase 3E: ML V2 Reviewed Result Promotion', () => {
       const res = await request(app)
         .get(`/api/v1/ml-v2/promotions?promotedCandidateId=${review.reviewedCandidateId}`)
         .set('Authorization', `Bearer ${adminToken1}`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.data).toHaveLength(1);
     });

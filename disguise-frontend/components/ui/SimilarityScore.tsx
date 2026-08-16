@@ -17,19 +17,15 @@ export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
   // VAE Euclidean distances are negative in DB or > 1.5 in raw values
   const isDistance = score < 0 || distance > 1.5;
 
-  // Calculate biometric accuracy percentage based on empirical VAE thresholds
-  // Tier TINGGI: distance <= 3.5 -> 80.0% to 100.0%
-  // Tier SEDANG: 3.5 < distance <= 4.5 -> 65.0% to 79.9%
-  // Tier RENDAH: distance > 4.5 -> 0% to 64.9%
+  // Calculate biometric accuracy percentage based on empirical Facenet thresholds
+  // Distance 0.0 = 100%, Distance 2.0 = 0%
+  // Tier TINGGI: distance <= 0.8 -> >= 60.0%
+  // Tier SEDANG: 0.8 < distance <= 1.35 -> >= 32.5%
+  // Tier RENDAH: distance > 1.35 -> < 32.5%
   let accuracyPct = 0;
   if (isDistance) {
-    if (distance <= 3.5) {
-      accuracyPct = 100 - (distance * (20 / 3.5));
-    } else if (distance <= 4.5) {
-      accuracyPct = 80 - ((distance - 3.5) * 15);
-    } else {
-      accuracyPct = Math.max(0, 65 - ((distance - 4.5) * 20));
-    }
+    accuracyPct = 100 * (1 - distance / 2.0);
+    accuracyPct = Math.max(0, Math.min(100, accuracyPct));
   } else {
     // Legacy cosine similarity fallback (0.0 to 1.0)
     accuracyPct = Math.min(100, Math.max(0, score * 100));

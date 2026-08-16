@@ -1,50 +1,51 @@
+# Secrets and Environment
 .env
 .env.*
 !.env.example
-*.env.pi
 
-disguise-backend/known.jpg
-disguise-backend/unknown.jpg
-disguise-backend/logs/
-*.jsonl
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+.pnpm-debug.log
+dist/
+build/
 
-staging_extract/
-staging_missing/
-# Secrets and local environment files
-.env
-.env.*
-!.env.example
-*.env.pi
+# Next.js
+.next/
+out/
 
-# Phase 3A local files
-disguise-backend/known.jpg
-disguise-backend/unknown.jpg
-disguise-backend/logs/
-*.jsonl
-
-# Temporary extraction directories
-staging_extract/
-staging_missing/
-
-
-# Local IDE/agent settings
-.claude/settings.local.json
-last_command_session_gemini.md
-
-# Python caches
-**/__pycache__/
+# Python
+__pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+*.log
 
-# Local archives
+# Models & Large Files
+*.pt
+*.pth
+*.onnx
 *.zip
 
-# Local test assets
+# Local IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+.claude/
+.agent/
+
+# Disguise-ID Specific Temp Files
 disguise-backend/dummy.jpg
-
-# Model binaries
-*.pth
-*.pt
-
-# Runtime artifacts
-logs/
+disguise-backend/known.jpg
+disguise-backend/unknown.jpg
+disguise-backend/logs/
+staging_extract/
+staging_missing/
+disguise-raps/
 *.jsonl

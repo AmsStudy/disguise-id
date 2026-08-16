@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faGauge, faVideo, faBell, faUsers, faBriefcase,
   faChartBar, faGear, faRightFromBracket,
-  faChevronLeft, faChevronRight,
+  faChevronLeft, faChevronRight, faHistory
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useAlertStore } from '@/store/alertStore';
@@ -23,6 +23,8 @@ const navItems = [
   { href: '/dashboard/watchlist', label: 'Watchlist', icon: faUsers },
   { href: '/dashboard/cases', label: 'Cases', icon: faBriefcase },
   { href: '/dashboard/analytics', label: 'Analytics', icon: faChartBar },
+  { href: '/dashboard/users', label: 'Users', icon: faUsers },
+  { href: '/dashboard/audit', label: 'Audit Trail', icon: faHistory },
   { href: '/dashboard/settings', label: 'Settings', icon: faGear },
 ];
 

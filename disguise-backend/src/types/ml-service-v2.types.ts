@@ -31,6 +31,7 @@ export const branchResultSchema = z.object({
   margin: z.number().nullable().optional(),
   detection_score: z.number().nullable().optional(),
   reconstruction_ms: z.number().nullable().optional(),
+  server_embedding: z.array(z.number()).nullable().optional(),
   error: z.string().nullable().optional(),
 });
 
@@ -80,7 +81,17 @@ export interface V2ShadowLogEntry {
   score?: number | null;
   margin?: number | null;
   
+  // Parity metrics
+  edge_norm?: number;
+  server_norm?: number;
+  cosine_similarity?: number;
+  l2_distance?: number;
+  mean_abs_diff?: number;
+  max_abs_diff?: number;
+  model_hash_mismatch?: boolean;
+
   // Error handling
   errorCode?: V2ErrorCode;
   reason?: string;
 }
+

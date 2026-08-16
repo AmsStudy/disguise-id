@@ -15,6 +15,8 @@ class DetectedFace(BaseModel):
     confidence: float
     bbox: BBox
     face_crop_bytes: bytes  # JPEG encoded
+    edge_embedding: Optional[List[float]] = None
+    edge_embedding_metadata: Optional[dict] = None
     
 class ProcessedFrame(BaseModel):
     timestamp: str

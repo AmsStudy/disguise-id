@@ -40,8 +40,9 @@ export class CameraAgentController {
         password = CameraCredentialEncryption.decrypt(password, fullCamera.organizationId, fullCamera.id);
       }
 
-      const configResponse = {
+        const configResponse = {
         configVersion,
+        cameraId: fullCamera.id,
         updatedAt: fullCamera.updatedAt.toISOString(),
         enabled: fullCamera.status !== 'disabled' && fullCamera.status !== 'credentials_required',
         sampleFps: 1, // Defaulting to 1 FPS for this project phase
@@ -73,6 +74,29 @@ export class CameraAgentController {
       
       // We can also return a hint if the config has changed
       sendSuccess(res, { message: 'Heartbeat recorded' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async reportLiveTracking(req: Request, res: Response, next: NextFunction) {
+    try {
+      const camera = (req as any).camera;
+      if (!camera) throw notFound('Camera context missing');
+
+      // req.body should contain { bboxes: [[x,y,w,h], ...], timestamp: string, frame_w: number, frame_h: number }
+      // We will just emit this directly to the Socket.IO room for this camera
+      const { emitDetectionLive } = require('../../sockets');
+      
+      emitDetectionLive(camera.id, {
+        cameraId: camera.id,
+        timestamp: req.body.timestamp || new Date().toISOString(),
+        bboxes: req.body.bboxes || [],
+        frameWidth: req.body.frame_w || 1920,
+        frameHeight: req.body.frame_h || 1080
+      });
+
+      sendSuccess(res, { ok: true });
     } catch (err) {
       next(err);
     }
