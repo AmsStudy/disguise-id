@@ -31,6 +31,7 @@ env/
 *.pth
 *.onnx
 *.zip
+!ml-service-v2/weights/best_model.pt
 
 # Local IDE / OS
 .vscode/

@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     margin_threshold: float = 0.08
     
     # Paths
-    checkpoint_path: str = r"F:\PYTORCH_WORKSPACE\disguise-id\outputs\stage25_stage20b_fullskip_facenet_seed2026\best_model.pt"
-    gallery_csv_path: str = r"F:\PENELITIAN\DISGUISE-ID\dataset\+ATRIBUT\DPO_SYSTEM_PREPARED\gallery.csv"
+    base_dir: str = os.path.dirname(os.path.dirname(__file__))
+    checkpoint_path: str = os.path.join(base_dir, "weights", "best_model.pt")
+    gallery_csv_path: str = os.path.join(base_dir, "weights", "gallery.csv")
     insightface_root: str = "~/.insightface"
     
     # Feature Flags
