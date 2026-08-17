@@ -78,14 +78,15 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8001
+      - ML_SERVICE_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
     # Uncomment the below block if you have an NVIDIA GPU setup for Docker
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # ─── 3. BACKEND (Express Node.js) ────────────────────────────
   backend:
