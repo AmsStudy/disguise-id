@@ -55,7 +55,7 @@ export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
   return (
     <div
       style={{ display: 'inline-flex', flexDirection: 'column', gap: '5px', minWidth: size === 'sm' ? '95px' : '140px' }}
-      title={`Forensik Biometrik — Akurasi: ${pctStr}% | Jarak L2: ${distance.toFixed(3)} | Status: ${tierDesc}`}
+      title={`Forensik Biometrik — Tingkat Kemiripan: ${pctStr}% | Jarak L2: ${distance.toFixed(3)} | Status: ${tierDesc}`}
     >
       {/* Main Percentage Readout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -72,7 +72,7 @@ export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
             letterSpacing: '0.3px',
           }}
         >
-          {size === 'sm' ? `${pctStr}% Match` : `Akurasi: ${pctStr}%`}
+          {size === 'sm' ? `${pctStr}% Match` : `Tingkat Kemiripan: ${pctStr}%`}
         </span>
       </div>
 

@@ -68,8 +68,8 @@ const AlertDetailModal: React.FC<{
                   <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '16px', fontWeight: 700, color: '#E8F4F8', letterSpacing: '1px' }}>
                     FORENSIC DETAILED RECORD
                   </h2>
-                  <Badge variant={alert.status === 'confirmed' ? 'online' : alert.status === 'dismissed' ? 'default' : 'high'}>
-                    {statusLabels[alert.status] || alert.status.toUpperCase()}
+                  <Badge variant={alert?.status === 'confirmed' ? 'online' : alert?.status === 'dismissed' ? 'default' : 'high'}>
+                    {statusLabels[alert?.status || ''] || (alert?.status || 'UNKNOWN').toUpperCase()}
                   </Badge>
                 </div>
                 <p style={{ color: '#8BAFC4', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace', marginTop: '2px' }}>
@@ -192,7 +192,7 @@ const AlertDetailModal: React.FC<{
                 </>
               ) : (
                 <Button variant="secondary" size="md" onClick={onClose} fullWidth>
-                  Status: {statusLabels[alert.status] || alert.status.toUpperCase()} (Tutup)
+                  Status: {statusLabels[alert?.status || ''] || (alert?.status || 'UNKNOWN').toUpperCase()} (Tutup)
                 </Button>
               )}
             </div>
@@ -462,8 +462,8 @@ export default function AlertsPage() {
                     {/* Center: Forensic Accuracy Score & Status Badge */}
                     <div className="alert-card-center">
                       <SimilarityScore score={alert.similarityScore ?? alert.similarity ?? 0} size="md" showBar />
-                      <Badge variant={alert.status === 'confirmed' ? 'online' : alert.status === 'dismissed' ? 'default' : 'high'}>
-                        {statusLabels[alert.status] || alert.status.toUpperCase()}
+                      <Badge variant={alert?.status === 'confirmed' ? 'online' : alert?.status === 'dismissed' ? 'default' : 'high'}>
+                        {statusLabels[alert?.status || ''] || (alert?.status || 'UNKNOWN').toUpperCase()}
                       </Badge>
                     </div>
 

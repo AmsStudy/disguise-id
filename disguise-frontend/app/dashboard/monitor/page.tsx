@@ -34,9 +34,12 @@ export default function MonitorPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
   const [systemHealth, setSystemHealth] = useState<{ available: boolean; reason: string } | null>(null);
+  const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string, key: string } | null>(null);
 
   const [name, setName] = useState('');
   const [locationName, setLocationName] = useState('');
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   const [ipAddress, setIpAddress] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -127,6 +130,8 @@ export default function MonitorPage() {
   const resetForm = () => {
     setName('');
     setLocationName('');
+    setLatitude('');
+    setLongitude('');
     setIpAddress('');
     setUsername('');
     setPassword('');
@@ -140,17 +145,18 @@ export default function MonitorPage() {
     try {
       const payload = {
         name,
-        location_name: locationName,
-        ip_address: ipAddress,
-        username,
-        password,
-        stream_url: streamUrl,
+        location_name: locationName || undefined,
+        latitude: latitude ? parseFloat(latitude) : undefined,
+        longitude: longitude ? parseFloat(longitude) : undefined,
       };
 
       if (editCameraId) {
         await cameraApi.update(editCameraId, payload);
       } else {
-        await cameraApi.create(payload);
+        const res = await cameraApi.create(payload);
+        if (res.data?.data?.api_key) {
+          setGeneratedApiKey({ id: res.data.data.id, key: res.data.data.api_key });
+        }
       }
       resetForm();
       setIsModalOpen(false);
@@ -180,6 +186,8 @@ export default function MonitorPage() {
     setEditCameraId(cam.id);
     setName(cam.name || '');
     setLocationName(cam.location || '');
+    setLatitude(cam.latitude !== null && cam.latitude !== undefined ? String(cam.latitude) : '');
+    setLongitude(cam.longitude !== null && cam.longitude !== undefined ? String(cam.longitude) : '');
     setIpAddress(cam.ipAddress || '');
     setUsername(cam.username || '');
     setPassword((cam as any).password || '');
@@ -460,8 +468,8 @@ export default function MonitorPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                 <div>
-                  <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '18px', fontWeight: 700, color: '#E8F4F8' }}>{editCameraId ? 'Edit Monitor' : 'Tambah Monitor'}</h2>
-                  <p style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>Isi IP, kredensial, dan stream URL kamera CCTV.</p>
+                  <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '18px', fontWeight: 700, color: '#E8F4F8' }}>{editCameraId ? 'Edit Edge Device' : 'Register Edge Device (Raspi)'}</h2>
+                  <p style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>Daftarkan titik Edge Device baru untuk pengiriman data.</p>
                 </div>
                 <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} aria-label="Tutup" style={{ background: 'none', border: 'none', color: '#8BAFC4', cursor: 'pointer' }}>
                   <FontAwesomeIcon icon={faXmark} style={{ fontSize: '20px' }} />
@@ -469,17 +477,59 @@ export default function MonitorPage() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                <Input label="Nama Kamera" value={name} onChange={(e) => setName(e.target.value)} placeholder="Pintu Masuk Utama" />
+                <Input label="Nama Titik (Kamera)" value={name} onChange={(e) => setName(e.target.value)} placeholder="Pintu Masuk Utama" />
                 <Input label="Lokasi" value={locationName} onChange={(e) => setLocationName(e.target.value)} placeholder="Lobby A" />
-                <Input label="IP Address" value={ipAddress} onChange={(e) => setIpAddress(e.target.value)} placeholder="172.125.0.201" />
-                <Input label="Stream URL" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="rtsp://.../stream2" />
-                <Input label="Username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="disguise" />
-                <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="disguise-id123" />
+                <Input label="Latitude (Opsional)" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="-6.200000" />
+                <Input label="Longitude (Opsional)" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="106.816666" />
               </div>
 
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <Button variant="ghost" size="md" onClick={() => { setIsModalOpen(false); resetForm(); }}>Batal</Button>
                 <Button variant="fox" size="md" loading={saving} onClick={handleSaveCamera}>{saving ? 'Menyimpan...' : (editCameraId ? 'Simpan Perubahan' : 'Simpan Monitor')}</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {generatedApiKey && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(6, 13, 20, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '24px' }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{ background: '#112236', border: '1px solid #00E676', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '500px' }}
+            >
+              <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '20px', fontWeight: 700, color: '#00E676', marginBottom: '8px' }}>Pendaftaran Berhasil!</h2>
+              <p style={{ color: '#E8F4F8', fontSize: '14px', marginBottom: '24px' }}>
+                Edge Device berhasil terdaftar. Segera salin kredensial di bawah ini dan masukkan ke file <code style={{ color: '#00E5FF' }}>.env</code> pada Raspberry Pi Anda.
+                <br /><br />
+                <strong style={{ color: '#FF6B35' }}>Penting:</strong> API Key ini hanya ditampilkan satu kali ini saja demi keamanan!
+              </p>
+
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: '#8BAFC4', marginBottom: '4px' }}>CAMERA_ID</div>
+                  <div style={{ fontSize: '14px', color: '#00E5FF', fontFamily: 'JetBrains Mono, monospace', userSelect: 'all', background: 'rgba(0,229,255,0.05)', padding: '8px', borderRadius: '6px' }}>
+                    {generatedApiKey.id}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '11px', color: '#8BAFC4', marginBottom: '4px' }}>API_KEY</div>
+                  <div style={{ fontSize: '14px', color: '#00E5FF', fontFamily: 'JetBrains Mono, monospace', userSelect: 'all', background: 'rgba(0,229,255,0.05)', padding: '8px', borderRadius: '6px' }}>
+                    {generatedApiKey.key}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="fox" size="md" onClick={() => setGeneratedApiKey(null)}>Saya Sudah Menyalinnya</Button>
               </div>
             </motion.div>
           </motion.div>

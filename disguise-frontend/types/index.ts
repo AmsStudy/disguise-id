@@ -43,6 +43,8 @@ export interface Camera {
   alerts_today?: number;
   lat?: number;
   lng?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Alert {
