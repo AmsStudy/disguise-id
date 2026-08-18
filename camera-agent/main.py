@@ -11,6 +11,27 @@ from capture import RTSPCapture
 from face_detector import FaceDetector
 from uploader import BackendUploader
 from health import HealthReporter
+import subprocess
+from urllib.parse import urlparse
+
+def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
+    # Extract IP from central_url (e.g. http://172.125.0.3:3002 -> 172.125.0.3)
+    parsed = urlparse(central_url)
+    central_ip = parsed.hostname or "localhost"
+    
+    # Push to MediaMTX on the central server via VPN
+    push_url = f"rtsp://{central_ip}:8554/{camera_id}"
+    
+    cmd = [
+        "ffmpeg",
+        "-rtsp_transport", "tcp",
+        "-i", local_rtsp_url,
+        "-c", "copy",
+        "-f", "rtsp",
+        push_url
+    ]
+    logger.info(f"Starting FFmpeg Push to Central Server: {' '.join(cmd)}")
+    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -48,6 +69,7 @@ def main():
     detector = None
     uploader = BackendUploader()
     capture = None
+    ffmpeg_process = None
     
     current_etag = None
     current_fps = 1
@@ -58,6 +80,9 @@ def main():
         health_reporter.stop()
         if capture:
             capture.release()
+        if ffmpeg_process:
+            ffmpeg_process.terminate()
+            ffmpeg_process.wait()
         sys.exit(0)
         
     signal.signal(signal.SIGINT, signal_handler)
@@ -118,12 +143,27 @@ def main():
                         if current_rtsp != rtsp_url:
                             capture.release()
                             capture = None
+                            if ffmpeg_process:
+                                ffmpeg_process.terminate()
+                                ffmpeg_process = None
 
                     if is_enabled and not capture:
                         # Force capture to run at 5 FPS for smooth tracking overlay
                         capture = RTSPCapture(rtsp_url=rtsp_url, fps=5)
                         capture.connect()
                         logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
+                        
+                        camera_id = backend_config.get("cameraId")
+                        if config.stream_push_enabled and camera_id and not ffmpeg_process:
+                            ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, camera_id)
+
+                    # Monitor FFmpeg process health
+                    if ffmpeg_process and ffmpeg_process.poll() is not None:
+                        logger.warning("FFmpeg push process exited. Restarting...")
+                        ffmpeg_process = None
+                        camera_id = backend_config.get("cameraId")
+                        if config.stream_push_enabled and camera_id and rtsp_url:
+                            ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, camera_id)
 
             if not is_enabled or not capture:
                 time.sleep(5)
@@ -181,6 +221,9 @@ def main():
     finally:
         if capture:
             capture.release()
+        if ffmpeg_process:
+            ffmpeg_process.terminate()
+            ffmpeg_process.wait()
         health_reporter.stop()
 
 if __name__ == "__main__":

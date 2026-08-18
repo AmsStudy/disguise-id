@@ -16,3 +16,4 @@ authInternalUsers:
       - action: metrics
       - action: pprof
 paths:
+  all:
