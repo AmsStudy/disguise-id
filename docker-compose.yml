@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: disguiseid
     ports:
       - "5432:5432"
@@ -38,8 +38,8 @@ services:
     container_name: disguise-minio
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -78,7 +78,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8001
-      - ML_SERVICE_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
+      - ML_SERVICE_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
       - REQUIRE_CUDA=false
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
     # Uncomment the below block if you have an NVIDIA GPU setup for Docker
@@ -98,28 +98,28 @@ services:
     container_name: disguise-backend
     restart: unless-stopped
     ports:
-      - "3002:3000" # Expose internally 3000 to externally 3002
+      - "${BACKEND_PORT:-3002}:3000" # Expose internally 3000 to externally 3002
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/disguiseid
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@postgres:5432/disguiseid}
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
       - MINIO_USE_SSL=false
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_PUBLIC_URL=http://localhost:9000
-      - JWT_SECRET=super_secret_for_dev
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-http://localhost:9000}
+      - JWT_SECRET=${JWT_SECRET:-super_secret_for_dev}
       - ML_SERVICE_URL=http://ml-service:8001
       - ML_SERVICE_V2_URL=http://ml-service:8001
       - ML_SERVICE_V2_ENABLED=true
-      - ML_SERVICE_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
-      - ML_SERVICE_V2_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
+      - ML_SERVICE_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
+      - ML_SERVICE_V2_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
       - RATE_LIMIT_CAMERA_MAX=200
       - CAMERA_CREDENTIAL_ENCRYPTION_ENABLED=true
       - CAMERA_CREDENTIAL_KEY_VERSION=v1
-      - CAMERA_CREDENTIAL_KEY_BASE64=ISzqe6KmlEjDs/nSiKl4us1y8PdGyy5zhyUAIWZdebY=
+      - CAMERA_CREDENTIAL_KEY_BASE64=${CAMERA_CREDENTIAL_KEY_BASE64:-ISzqe6KmlEjDs/nSiKl4us1y8PdGyy5zhyUAIWZdebY=}
       - MEDIAMTX_API_URL=http://mediamtx:9997
     depends_on:
       postgres:
@@ -133,15 +133,17 @@ services:
       context: ./disguise-frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3002
-        NEXT_PUBLIC_WS_URL: ws://localhost:3002
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:3002}
+        NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL: ${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-http://localhost:8889}
     container_name: disguise-frontend
     restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:3002
-      - NEXT_PUBLIC_WS_URL=ws://localhost:3002
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3002}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:3002}
+      - NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL=${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-http://localhost:8889}
     depends_on:
       - backend
 
