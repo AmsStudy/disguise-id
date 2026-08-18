@@ -82,13 +82,13 @@ services:
       - REQUIRE_CUDA=false
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
     # Uncomment the below block if you have an NVIDIA GPU setup for Docker
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   # ─── 3. BACKEND (Express Node.js) ────────────────────────────
   backend:
@@ -147,9 +147,24 @@ services:
     depends_on:
       - backend
 
-
+  # ─── 5. REVERSE PROXY (Caddy) ────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: disguise-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-disguise.id}
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  caddy_data:
+  caddy_config:
