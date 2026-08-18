@@ -37,9 +37,5 @@ http://stream.{$DOMAIN_NAME} {
         respond "" 204
     }
 
-    header Access-Control-Allow-Origin "*"
-    header Access-Control-Allow-Methods "GET, POST, OPTIONS, PATCH, PUT, DELETE"
-    header Access-Control-Allow-Headers "*"
-
     reverse_proxy mediamtx:8889
 }
