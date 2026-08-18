@@ -15,11 +15,14 @@ import subprocess
 from urllib.parse import urlparse
 
 def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
-    # Extract IP from central_url (e.g. http://172.125.0.3:3002 -> 172.125.0.3)
-    parsed = urlparse(central_url)
-    central_ip = parsed.hostname or "localhost"
+    # If MEDIAMTX_HOST is explicitly set, use it. Otherwise extract from central_url
+    if config.mediamtx_host:
+        central_ip = config.mediamtx_host
+    else:
+        parsed = urlparse(central_url)
+        central_ip = parsed.hostname or "localhost"
     
-    # Push to MediaMTX on the central server via VPN
+    # Push to MediaMTX on the central server via VPN / IP
     push_url = f"rtsp://{central_ip}:8554/{camera_id}"
     
     cmd = [
