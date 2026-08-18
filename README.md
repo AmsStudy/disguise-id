@@ -97,3 +97,27 @@ Jika semua langkah di atas sudah dilakukan, layanan Anda akan dapat diakses pada
 > [!TIP]
 > **Akselerasi GPU (NVIDIA)**
 > Jika Anda menggunakan server dengan GPU NVIDIA, jangan lupa membuka konfigurasi `docker-compose.yml`, cari bagian `ml-service`, dan hapus tanda pagar (`#`) pada blok `deploy: resources: reservations:` agar *container* ML dapat menggunakan CUDA.
+
+---
+
+## 8. Menjalankan Camera Agent (Lokal)
+
+Service `camera-agent` telah dipisahkan dari konfigurasi Docker dan ditujukan untuk berjalan secara lokal (native) di mesin Anda atau di *edge device* (seperti Raspberry Pi).
+
+**Langkah-langkah menjalankan:**
+
+1. Pastikan Anda telah menginstal Python 3.9+ di mesin Anda.
+2. Masuk ke direktori `camera-agent`:
+   ```bash
+   cd camera-agent
+   ```
+3. Sesuaikan file `.env`. Karena berjalan di luar jaringan Docker, arahkan backend ke `localhost`:
+   ```env
+   BACKEND_URL=http://localhost:3002
+   WEBSOCKET_URL=ws://localhost:3002
+   ```
+4. Instal dependensi dan jalankan skrip:
+   ```bash
+   pip install -r requirements.txt
+   python main.py
+   ```

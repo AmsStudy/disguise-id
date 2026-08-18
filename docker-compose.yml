@@ -145,22 +145,7 @@ services:
     depends_on:
       - backend
 
-  # ─── 5. CAMERA AGENT (Python CCTV Simulator) ─────────────────
-  camera-agent:
-    build:
-      context: ./camera-agent
-      dockerfile: Dockerfile
-    container_name: disguise-camera-agent
-    restart: unless-stopped
-    environment:
-      - BACKEND_URL=http://backend:3000
-      - API_KEY=cam_auto_xyz123
-      - WEBSOCKET_URL=ws://backend:3000
-      - CAMERA_ID=simulated-cam-01
-      - CAMERA_NAME=CCTV Utama
-    depends_on:
-      - backend
-      - mediamtx
+
 
 volumes:
   postgres_data:

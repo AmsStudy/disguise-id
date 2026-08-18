@@ -82,29 +82,36 @@ def main():
                 
                 # Re-initialize capture if URL changes or started
                 credentials = backend_config.get("credentials", {})
-                stream_url = credentials.get("streamUrl")
-                if stream_url:
-                    # Construct URL with credentials
-                    from urllib.parse import urlparse
-                    parsed = urlparse(stream_url)
-                    netloc = parsed.netloc
-                    
-                    if credentials.get('username') and credentials.get('password'):
-                        # Remove existing auth if present in streamUrl string
-                        if '@' in netloc:
-                            netloc = netloc.split('@')[1]
-                        import urllib.parse
-                        safe_pass = urllib.parse.quote(credentials['password'])
-                        netloc = f"{credentials['username']}:{safe_pass}@{netloc}"
+                
+                # Gunakan RTSP lokal jika diatur, jika tidak ikuti URL dari Backend
+                rtsp_url = config.rtsp_url
+                
+                if not rtsp_url:
+                    stream_url = credentials.get("streamUrl")
+                    if stream_url:
+                        # Construct URL with credentials
+                        from urllib.parse import urlparse
+                        parsed = urlparse(stream_url)
+                        netloc = parsed.netloc
                         
-                    rtsp_url = parsed._replace(netloc=netloc).geturl()
-                    
-                    # [WORKAROUND] Route through MediaMTX Proxy for Stream 1
-                    # MediaMTX already holds the physical Stream 1 connection.
-                    camera_id = backend_config.get("cameraId")
-                    if camera_id:
-                        rtsp_url = f"rtsp://mediamtx:8554/{camera_id}"
-                        logger.info(f"Routing RTSP through MediaMTX Proxy: {rtsp_url}")
+                        if credentials.get('username') and credentials.get('password'):
+                            # Remove existing auth if present in streamUrl string
+                            if '@' in netloc:
+                                netloc = netloc.split('@')[1]
+                            import urllib.parse
+                            safe_pass = urllib.parse.quote(credentials['password'])
+                            netloc = f"{credentials['username']}:{safe_pass}@{netloc}"
+                            
+                        rtsp_url = parsed._replace(netloc=netloc).geturl()
+                        
+                        # [WORKAROUND] Route through MediaMTX Proxy for Stream 1
+                        # MediaMTX already holds the physical Stream 1 connection.
+                        camera_id = backend_config.get("cameraId")
+                        if camera_id:
+                            rtsp_url = f"rtsp://mediamtx:8554/{camera_id}"
+                            logger.info(f"Routing RTSP through MediaMTX Proxy: {rtsp_url}")
+                else:
+                    logger.info(f"Using local Edge RTSP_URL override: {rtsp_url}")
                     
                     if capture:
                         current_rtsp = getattr(capture, 'rtsp_url', None)

@@ -1,0 +1,10 @@
+services:
+  camera-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: disguise-camera-agent-edge
+    restart: unless-stopped
+    env_file:
+      - .env
+    network_mode: "host"
