@@ -21,3 +21,9 @@ http://storage.{$DOMAIN_NAME} {
     # Rute ke MinIO (Gambar & File)
     reverse_proxy minio:9000
 }
+
+http://stream.{$DOMAIN_NAME} {
+    # Rute ke MediaMTX WHEP (Live Streaming)
+    # Ini menyelesaikan masalah "Mixed Content" karena sekarang streaming memiliki HTTPS dari Cloudflare
+    reverse_proxy mediamtx:8889
+}
