@@ -26,4 +26,4 @@ COPY . /app
 EXPOSE 8001
 
 # Run with concurrency 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1", "--limit-concurrency", "1"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]

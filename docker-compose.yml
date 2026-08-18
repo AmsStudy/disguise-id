@@ -79,6 +79,8 @@ services:
       - HOST=0.0.0.0
       - PORT=8001
       - ML_SERVICE_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
+      - REQUIRE_CUDA=false
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
     # Uncomment the below block if you have an NVIDIA GPU setup for Docker
     deploy:
       resources:
@@ -109,10 +111,12 @@ services:
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_PUBLIC_URL=http://localhost:9000
       - JWT_SECRET=super_secret_for_dev
+      - ML_SERVICE_URL=http://ml-service:8001
       - ML_SERVICE_V2_URL=http://ml-service:8001
       - ML_SERVICE_V2_ENABLED=true
-      - ML_SERVICE_API_KEY=HKfZ0TP2Vei9Vtx88rPckAG6b4mZSSS5qqkxUKK6ib0SQSmrPQ_Wt2A2n1XTgotA
+      - ML_SERVICE_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
       - ML_SERVICE_V2_API_KEY=WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec
+      - RATE_LIMIT_CAMERA_MAX=200
       - CAMERA_CREDENTIAL_ENCRYPTION_ENABLED=true
       - CAMERA_CREDENTIAL_KEY_VERSION=v1
       - CAMERA_CREDENTIAL_KEY_BASE64=ISzqe6KmlEjDs/nSiKl4us1y8PdGyy5zhyUAIWZdebY=
@@ -149,9 +153,9 @@ services:
     container_name: disguise-camera-agent
     restart: unless-stopped
     environment:
-      - API_URL=http://backend:3000/api/v1
+      - BACKEND_URL=http://backend:3000
+      - API_KEY=cam_auto_xyz123
       - WEBSOCKET_URL=ws://backend:3000
-      - RTSP_SERVER_URL=rtsp://mediamtx:8554
       - CAMERA_ID=simulated-cam-01
       - CAMERA_NAME=CCTV Utama
     depends_on:

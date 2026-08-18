@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     deps._gallery_service = GalleryService(deps._arcface_service)
     
     # Global semaphore for inference concurrency
-    app.state.inference_semaphore = asyncio.Semaphore(1)
+    app.state.inference_semaphore = asyncio.Semaphore(4)
     
     try:
         deps._gallery_service.load_gallery()
@@ -122,8 +122,7 @@ async def infer_face(
     quality_score: float = Form(None),
     return_server_embedding: bool = Form(False)
 ):
-    if not deps.get_gallery_service().prototypes_by_org:
-        raise HTTPException(status_code=503, detail="GALLERY_NOT_READY")
+    # Gallery check is handled gracefully inside InferenceService (returns no_match instead of 503)
 
     if face_crop.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail=f"INVALID_IMAGE: Unsupported MIME type {face_crop.content_type}")
@@ -161,12 +160,14 @@ async def infer_face(
     except ValueError as e:
         if str(e) == "ORG_GALLERY_NOT_LOADED":
             return JSONResponse(
-                status_code=503,
+                status_code=200,
                 content={
-                    "error": {
-                        "code": "ORG_GALLERY_NOT_LOADED",
-                        "message": "Organization gallery is not loaded"
-                    }
+                    "status": "no_match",
+                    "matched": False,
+                    "reason": "gallery_empty",
+                    "top_matches": [],
+                    "embedding": None,
+                    "message": "No watchlist data loaded for this organization. Please add persons via the Watchlist menu."
                 }
             )
         raise HTTPException(status_code=400, detail=str(e))

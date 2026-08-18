@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class FaceDetector:
-    PAD_RATIO = 1.0
+    PAD_RATIO = 2.5
     MIN_FACE_SIZE = 40
 
     def __init__(self, det_size=(640, 640), min_confidence=0.5):

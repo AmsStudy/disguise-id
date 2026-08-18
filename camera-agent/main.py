@@ -103,7 +103,7 @@ def main():
                     # MediaMTX already holds the physical Stream 1 connection.
                     camera_id = backend_config.get("cameraId")
                     if camera_id:
-                        rtsp_url = f"rtsp://127.0.0.1:8554/{camera_id}"
+                        rtsp_url = f"rtsp://mediamtx:8554/{camera_id}"
                         logger.info(f"Routing RTSP through MediaMTX Proxy: {rtsp_url}")
                     
                     if capture:
