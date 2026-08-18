@@ -24,8 +24,8 @@ outputs/
 checkpoints/
 
 # Local model assets
-models/
-buffalo_l/
+/models/
+/buffalo_l/
 
 # Dataset and media
 dataset/

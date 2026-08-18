@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     deps._gallery_service = GalleryService(deps._arcface_service)
     
     # Global semaphore for inference concurrency
-    app.state.inference_semaphore = asyncio.Semaphore(4)
+    app.state.inference_semaphore = asyncio.Semaphore(1)
     
     try:
         deps._gallery_service.load_gallery()
