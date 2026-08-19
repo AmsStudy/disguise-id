@@ -59,11 +59,22 @@ export default function DashboardPage() {
             watchlistActive: dashboardData.watchlist_count || 0,
           });
 
-          if (dashboardData.hourly_detection_chart) {
+          if (dashboardData.hourly_detection_chart && dashboardData.hourly_detection_chart.length > 0) {
             setChartData(dashboardData.hourly_detection_chart.map((d: any) => ({
               hour: new Date(d.hour).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              detections: d.count
+              detections: Number(d.count) || 0
             })));
+          } else {
+            const baseline = [];
+            const now = new Date();
+            for (let i = 20; i >= 0; i -= 4) {
+              const h = new Date(now.getTime() - i * 60 * 60 * 1000);
+              baseline.push({
+                hour: h.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+                detections: 0
+              });
+            }
+            setChartData(baseline);
           }
         }
         

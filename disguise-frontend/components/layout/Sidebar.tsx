@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faGauge, faVideo, faBell, faUsers, faBriefcase,
+  faGauge, faVideo, faBell, faUsers,
   faChartBar, faGear, faRightFromBracket,
   faChevronLeft, faChevronRight, faHistory
 } from '@fortawesome/free-solid-svg-icons';
@@ -21,7 +21,6 @@ const navItems = [
   { href: '/dashboard/alerts', label: 'Alerts', icon: faBell, badge: true },
   { href: '/dashboard/ml-v2', label: 'ML V2', icon: faChartBar },
   { href: '/dashboard/watchlist', label: 'Watchlist', icon: faUsers },
-  { href: '/dashboard/cases', label: 'Cases', icon: faBriefcase },
   { href: '/dashboard/analytics', label: 'Analytics', icon: faChartBar },
   { href: '/dashboard/users', label: 'Users', icon: faUsers },
   { href: '/dashboard/audit', label: 'Audit Trail', icon: faHistory },

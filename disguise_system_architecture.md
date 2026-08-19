@@ -1,76 +1,194 @@
-# Dokumentasi Sistem DISGUISE-ID: Arsitektur, Alur, & Skenario
+# Dokumentasi Sistem DISGUISE-ID: Arsitektur Hardware, Cloud, & Alur End-to-End
 
-Dokumen ini menjelaskan secara menyeluruh bagaimana sistem **DISGUISE-ID** beroperasi, apa saja komponen utamanya, serta menyimulasikan skenario nyata di lapangan untuk memperjelas cara kerja sistem *end-to-end*.
-
----
-
-## 1. Komponen Utama Sistem
-
-Sistem DISGUISE-ID dibangun menggunakan arsitektur *microservices* terdistribusi yang terdiri dari komponen-komponen berikut:
-
-1. **MediaMTX (RTSP Server):** Bertindak sebagai gerbang masuk (*router*) untuk semua aliran video CCTV fisik. Server ini mengubah sinyal CCTV (RTSP) menjadi format WebRTC agar bisa ditonton langsung (secara *live* dan tanpa *delay*) melalui *browser*.
-2. **Camera Agent (Python):** *Service* cerdas yang menempel pada *stream* CCTV. Bertugas untuk mengambil gambar (frame) dari video, mendeteksi wajah dengan model **RetinaFace**, dan melakukan filter kualitas (membuang gambar *blur*).
-3. **Backend (Node.js/Express):** Otak orkestrasi sistem. Mengatur autentikasi, manajemen data DPO (Buronan), menghubungkan *Camera Agent* ke *ML Service*, dan menyebarkan notifikasi (*alert*) melalui WebSocket.
-4. **ML Service V2 (Python/PyTorch):** Mesin Kecerdasan Buatan tingkat lanjut. Menggunakan model **Stage20b Autoencoder** untuk memulihkan wajah yang memakai penyamaran (*de-disguise*), dan **ArcFace** untuk mengekstrak vektor identitas wajah (*embedding 512-dimensi*).
-5. **PostgreSQL & pgvector:** *Database* relasional yang dilengkapi ekstensi pencarian vektor. Digunakan untuk menyimpan data profil DPO beserta *vector embedding*-nya, serta melakukan pencocokan (*Cosine Similarity*) dengan super cepat.
-6. **MinIO (S3-Compatible):** Tempat penyimpanan objek. Menyimpan foto profil asli DPO dan tangkapan layar (*crop* wajah) dari CCTV.
-7. **Frontend (Next.js):** Antarmuka pengguna (*Dashboard*). Tempat admin Polri menambahkan data DPO, memantau *live* CCTV, dan menerima peringatan instan jika buronan tertangkap kamera.
-8. **Redis:** Digunakan untuk *caching* dan menjamin kecepatan komunikasi data sementara.
+Dokumen ini menjelaskan secara komprehensif seluruh arsitektur sistem **DISGUISE-ID**, mulai dari perangkat keras (*hardware*) di lapangan (*Edge*), jalur transmisi jaringan, infrastruktur *Cloud* di Google Cloud Platform (GCP), hingga antarmuka pengguna (*Dashboard Web* & *Aplikasi Mobile*).
 
 ---
 
-## 2. Alur Sistem Keseluruhan (*End-to-End Flow*)
+## 1. Arsitektur Perangkat Keras & Jaringan (*Hardware & Network Infrastructure*)
 
-```mermaid
-sequenceDiagram
-    participant Cam as CCTV / RTSP
-    participant Agent as Camera Agent
-    participant BE as Backend
-    participant ML as ML Service V2
-    participant DB as PostgreSQL (pgvector)
-    participant FE as Frontend (UI)
+Sistem DISGUISE-ID membagi beban komputasi secara *hybrid* antara **Edge Processing** di lapangan dan **Cloud AI Processing** di server terpusat.
 
-    Cam->>Agent: Kirim Video Frame
-    Note over Agent: 1. Deteksi Wajah (RetinaFace)<br/>2. Crop Wajah<br/>3. Filter Blur
-    Agent->>BE: Kirim Wajah yang Terdeteksi
-    BE->>ML: Minta Ekstraksi Ciri
-    Note over ML: 1. Rekonstruksi Penyamaran<br/>2. Ekstrak Embedding 512D
-    ML->>DB: Cari Kemiripan Vektor DPO
-    DB-->>ML: Hasil (ID DPO, Skor Mirip)
-    ML-->>BE: Kembalikan Data Kandidat
-    Note over BE: Cek Threshold.<br/>Jika Cocok = Buat Alert!
-    BE->>FE: WebSocket Alert Push
-    Note over FE: Tampilkan Pop-Up Merah!
+```
+┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                LOKASI FISIK / EDGE (POS PANTAU / TKP)                              │
+│                                                                                                   │
+│   ┌────────────────────────┐         Kabel LAN RJ-45        ┌──────────────────────────────────┐  │
+│   │    CCTV TP-Link Tapo   │ ─────────────────────────────> │       Raspberry Pi 4 / 5         │  │
+│   │                        │        (Subnet Lokal:          │  (Camera Agent Native - Python)  │  │
+│   │ • Stream 1 (1080p FHD) │       192.168.1.27:554)        │                                  │  │
+│   │ • Stream 2 (360p Sub)  │                                │ 1. AI RetinaFace (Wajah & Box)   │  │
+│   └────────────────────────┘                                │ 2. Filter Blur (Laplacian)       │  │
+│                                                             │ 3. FFmpeg Push Stream (RTSP)     │  │
+│                                                             └────────────────┬─────────────────┘  │
+│                                                                              │ Port USB           │
+│                                                                              ▼                    │
+│                                                             ┌──────────────────────────────────┐  │
+│                                                             │       Modem USB 4G / LTE         │  │
+│                                                             │     (Cellular WAN Internet)      │  │
+│                                                             └────────────────┬─────────────────┘  │
+└──────────────────────────────────────────────────────────────────────────────┼────────────────────┘
+                                                                               │ 
+                                             Koneksi Internet Seluler (4G/LTE) │ HTTPS (API) / WSS (Socket)
+                                             Menembus IP Publik 34.101.174.33  │ RTSP (Port 8554)
+                                                                               ▼
+┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                GOOGLE CLOUD PLATFORM (GCP) - SERVER PUSAT                         │
+│                                                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                              Caddy Reverse Proxy (disguise.id)                              │  │
+│  └───────┬──────────────────────────────┬──────────────────────────────┬───────────────────────┘  │
+│          │                              │                              │                          │
+│          ▼                              ▼                              ▼                          │
+│  ┌───────────────┐              ┌───────────────┐              ┌───────────────┐                  │
+│  │   MediaMTX    │              │  Backend API  │              │     MinIO     │                  │
+│  │ (RTSP/WebRTC) │              │  (Node.js/TS) │              │  (S3 Storage) │                  │
+│  │  Port: 8554   │              │   Port: 3000  │              │   Port: 9000  │                  │
+│  └───────┬───────┘              └───────┬───────┘              └───────────────┘                  │
+│          │                              │                                                         │
+│          │                              ▼                                                         │
+│          │                      ┌───────────────┐                                                 │
+│          │                      │ ML Service V2 │ ◄── [Stage20b De-Disguise Autoencoder]          │
+│          │                      │(PyTorch/CUDA) │ ◄── [ArcFace 512-D Feature Vector]              │
+│          │                      └───────┬───────┘                                                 │
+│          │                              │                                                         │
+│          │                              ▼                                                         │
+│          │                      ┌───────────────┐                                                 │
+│          │                      │  PostgreSQL   │ ◄── [pgvector Cosine/L2 Biometric Search]       │
+│          │                      │  16 Database  │                                                 │
+│          │                      └───────────────┘                                                 │
+└──────────┼──────────────────────────────┬─────────────────────────────────────────────────────────┘
+           │                              │
+           │ WebRTC (WHEP)                │ HTTPS REST API & WebSocket (WSS)
+           │ Live Streaming               │ Real-Time DPO Alerts & Live Tracking Data
+           ▼                              ▼
+┌──────────────────────────────────────┐      ┌─────────────────────────────────────────────────────┐
+│       DASHBOARD WEB (COMMAND CENTER) │      │            APLIKASI MOBILE (DISGUISE-MOBILE)        │
+│          (Next.js 14 / TypeScript)   │      │              (Flutter - Android / iOS)              │
+│                                      │      │                                                     │
+│ • Live Video CCTV & AI Bounding Box  │      │ • Push Notification Instan ke Petugas Lapangan      │
+│ • Peringatan DPO Real-Time (Pop-up)  │      │ • Profil Lengkap & Foto DPO Buronan                 │
+│ • Manajemen DPO (Watchlist)          │      │ • Live Alert Feed & Status Tindakan Taktis          │
+│ • ML V2 Model Audit & Analytics      │      │ • Kompas & Koordinat Lokasi Kamera CCTV             │
+└──────────────────────────────────────┘      └─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Skenario Penggunaan Nyata (*Real-World Scenarios*)
+### Spesifikasi Hardware Lapangan (*Edge Node*):
+1. **Kamera CCTV (TP-Link Tapo C200 / C310 / Serupa):**
+   - Mengalirkan protokol RTSP lokal dengan 2 saluran (*Dual Stream*):
+     - **Stream 1 (`/stream1` - 1080p FHD):** Digunakan khusus oleh model AI di Raspberry Pi untuk mendeteksi wajah dengan resolusi tinggi.
+     - **Stream 2 (`/stream2` - 360p @ 15fps):** Digunakan untuk dikirim (*push*) ke server cloud agar hemat kuota internet dan lancar.
+2. **Koneksi LAN (Lokal):**
+   - Menghubungkan CCTV ke Raspberry Pi menggunakan kabel LAN UTP Cat5e/Cat6 melalui Switch/Router lokal tanpa membutuhkan akses internet pada kamera.
+3. **Raspberry Pi (Processing Unit):**
+   - Menjalankan sistem operasi Linux (Raspberry Pi OS) dan program `camera-agent-native` berbasis Python.
+   - Mengambil frame dari RTSP LAN, menjalankan model deteksi wajah **RetinaFace**, menyaring frame buram (*blur rejection*), dan mengekstrak kotak koordinat wajah (*bounding box*).
+4. **Modem USB 4G / LTE Dongle:**
+   - Terpasang pada port USB Raspberry Pi.
+   - Bertindak sebagai gerbang keluar (*Gateway WAN*) menggunakan kartu SIM seluler 4G untuk mengirim data frame wajah dan video RTSP ke Server GCP di cloud.
 
-Untuk mempermudah pemahaman, mari kita lihat 3 skenario utama bagaimana sistem ini bereaksi dalam kondisi nyata.
+---
 
-### Skenario A: Mendaftarkan Buronan (DPO) Baru ke Sistem
-1. **Admin Login:** Admin kepolisian *login* ke *dashboard* DISGUISE-ID.
-2. **Input Data:** Admin membuka halaman "Tambah DPO Baru". Ia mengisi nama, nomor kasus, dan mengunggah **1 lembar foto asli DPO** yang paling jelas.
-3. **Ekstraksi Awal:** Frontend mengirim foto tersebut ke Backend. Backend menyimpan foto itu ke **MinIO** dan mengirimkannya ke **ML Service V2**.
-4. **Vektorisasi:** ML Service membedah wajah DPO tersebut menggunakan ArcFace dan menghasilkan daftar angka sepanjang 512 dimensi.
-5. **Penyimpanan:** Vektor 512 dimensi tersebut disimpan di tabel `WatchlistedPerson` pada **PostgreSQL (pgvector)**. 
-6. **Selesai:** DPO kini aktif dan seluruh kamera secara otomatis siap mengintai DPO tersebut.
+## 2. Komponen Server Cloud (Google Cloud Platform)
 
-### Skenario B: Buronan Melintas di Depan Kamera (Wajah Terbuka)
-1. **Target Terpantau:** DPO melintasi stasiun kereta api di mana CCTV DISGUISE-ID terpasang.
-2. **Kamera Menangkap:** **Camera Agent** memotong *frame* video, menemukan wajah DPO, dan mengirimkannya ke Backend.
-3. **Pencarian Cepat:** Backend mengirimnya ke ML Service. ML Service menyadari tidak ada kacamata/masker tebal, sehingga langsung mengekstrak vektor wajahnya.
-4. **Pencocokan:** Model menembakkan *query* ke **pgvector**. Karena vektor wajah tangkapan kamera **sangat identik** dengan vektor foto DPO di *database* (misal kemiripan `85%`, melewati batas *threshold* `38%`), *database* menyatakan "COCOK".
-5. **Alarm Terpicu:** Backend mencatat kejadian deteksi ini, lalu menembakkan sinyal WebSocket ke *browser* admin kepolisian.
-6. **Tindakan:** Sebuah *pop-up* merah dengan bunyi sirine muncul di layar admin: *"PERINGATAN: DPO atas nama X terdeteksi di Kamera Stasiun Tugu!"* beserta foto tangkapan.
+Server pusat berjalan di atas VM GCP Compute Engine (`34.101.174.33`) menggunakan arsitektur container Docker:
 
-### Skenario C: Buronan Melintas dengan Masker dan Topi (Penyamaran)
-*Ini adalah fitur unggulan utama (Novelty) dari sistem DISGUISE-ID.*
+1. **Caddy Reverse Proxy:**
+   - Mengelola rute domain `disguise.id`, `api.disguise.id`, `storage.disguise.id`, dan `stream.disguise.id`.
+   - Mengamankan komunikasi dengan enkripsi SSL/TLS (HTTPS & WSS).
+2. **MediaMTX (RTSP to WebRTC Gateway):**
+   - Menerima aliran video *Push* dari Raspberry Pi via port **8554 (RTSP over TCP)**.
+   - Mengonversi video menjadi format **WebRTC WHEP (Port 8889)** sehingga dapat diputar di browser web dan HP tanpa *delay* (*latency* < 0.5 detik).
+3. **Backend API (Node.js & Express / TypeScript):**
+   - Menerima data koordinat deteksi wajah dan foto wajah dari Raspberry Pi via API terenkripsi.
+   - Memantau kondisi hidup/mati kamera (*heartbeat*).
+   - Menghubungkan antrean pemrosesan biometrik ke ML Service.
+   - Mengirimkan sinyal alarm seketika (*real-time WebSocket broadcast*) ke Dashboard Web dan Aplikasi Mobile.
+4. **ML Service V2 (Python, PyTorch, & CUDA):**
+   - **Stage20b Autoencoder (De-Disguise):** Membuka penyamaran target (menghilangkan efek masker, kacamata hitam, atau topi secara digital).
+   - **ArcFace / InceptionResNet:** Mengekstrak fitur biometrik wajah menjadi **vektor 512-dimensi**.
+5. **PostgreSQL 16 & pgvector:**
+   - Menyimpan seluruh data buronan (*WatchlistedPerson*).
+   - Melakukan pencarian kemiripan vektor biometrik menggunakan algoritma *L2 Euclidean Distance* dan *Cosine Similarity* dalam hitungan milidetik.
+6. **MinIO Object Storage:**
+   - Menyimpan foto asli DPO serta arsip bukti foto wajah yang tertangkap CCTV di lapangan.
+7. **Redis:**
+   - Menyimpan status detak jantung (*heartbeat*) kamera, antrean inferensi BullMQ, dan *caching* sesi pengguna.
 
-1. **Target Menyamar:** DPO melintasi jalan raya sambil mengenakan masker medis menutupi hidung & mulut, serta topi.
-2. **Kamera Menangkap:** **Camera Agent** tetap berhasil mendeteksi "ada wajah" di sana. Wajah bermasker itu dikirim ke Backend.
-3. **Fase De-Disguise (Autoencoder):** Wajah bermasker masuk ke **ML Service V2**. Di sini, alih-alih langsung dihitung kemiripannya, model **Stage20b** (SkipConnectedAutoencoder) diaktifkan. Model ini "merekonstruksi" atau "menebak" struktur hidung dan mulut di balik masker berdasarkan ciri mata dan dahi, menghasilkan gambar wajah yang sudah "dibersihkan" dari penyamarannya.
-4. **Vektorisasi Ulang:** Wajah hasil rekonstruksi (tanpa masker) itulah yang diekstrak menjadi 512 dimensi.
-5. **Pencocokan:** Hasil vektor ini dikirim ke **pgvector**. Berkat pembersihan penyamaran, kemiripan yang tadinya mungkin cuma `20%` (karena tertutup) sekarang naik menjadi `55%` (Cocok!).
-6. **Alarm Terpicu:** Seperti pada Skenario B, sistem memberi sinyal ke *dashboard*, dan petugas kepolisian dapat mencegat DPO tersebut secara langsung.
+---
+
+## 3. Alur Kerja Sistem Lengkap (*End-to-End Sequence*)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CCTV as CCTV Tapo (LAN)
+    participant RPi as Raspberry Pi (Edge)
+    participant Modem as Modem USB 4G
+    participant GCP as Server GCP (Backend & MediaMTX)
+    participant ML as ML Service V2 (AI)
+    participant DB as PostgreSQL (pgvector)
+    participant Web as Dashboard Web
+    participant Mobile as Mobile App (Petugas)
+
+    Note over CCTV,RPi: 1. Transmisi Lokal (LAN)
+    CCTV->>RPi: RTSP Stream 1 (1080p) & Stream 2 (360p)
+    Note over RPi: Deteksi Wajah (RetinaFace)<br/>Filter Blur & Crop Wajah
+
+    Note over RPi,GCP: 2. Pengiriman Keluar (Internet Seluler)
+    RPi->>Modem: Kirim Paket Data (Face Crop & RTSP Push)
+    Modem->>GCP: Forward ke IP Publik GCP (Port 443 & 8554)
+    
+    Note over GCP,ML: 3. Analisis Biometrik & AI
+    GCP->>ML: Kirim Crop Wajah Target
+    Note over ML: Tahap De-Disguise (Autoencoder)<br/>Ekstraksi Vektor 512 Dimensi
+    ML->>DB: Query Kemiripan Biometrik (pgvector)
+    DB-->>ML: Hasil Pencocokan (ID DPO, Jarak L2)
+    ML-->>GCP: Konfirmasi Target DPO (Skor Kemiripan Tinggi)
+
+    Note over GCP,Mobile: 4. Peringatan Taktis Real-Time
+    par Siaran ke Web Dashboard
+        GCP->>Web: WebSocket Event (Pop-up Merah, Sirene, Foto Target)
+    and Siaran ke Aplikasi Mobile
+        GCP->>Mobile: Push Notification & Detail DPO Buronan
+    end
+```
+
+---
+
+## 4. Skenario Operasional Nyata di Lapangan
+
+### Skenario 1: Pendaftaran DPO Baru oleh Admin Penyidik
+1. Penyidik login ke **Dashboard Web** DISGUISE-ID.
+2. Membuka menu **Watchlist** dan menekan tombol **Tambah DPO**.
+3. Memasukkan identitas buronan (Nama, NIK, Kasus Kejahatan) dan mengunggah **1 lembar foto wajah asli DPO**.
+4. Foto dikirim ke Backend, disimpan di **MinIO**, lalu diekstraksi oleh **ML Service V2** menjadi **vektor 512-dimensi**.
+5. Vektor disimpan ke dalam database **PostgreSQL (pgvector)**. DPO kini aktif dan seluruh kamera di lapangan otomatis siaga memburu target.
+
+---
+
+### Skenario 2: Target Melintas di Lapangan (Wajah Terbuka / Normal)
+1. DPO melintas di depan kamera CCTV TP-Link Tapo yang terpasang di lokasi pemantauan.
+2. Kamera mengirimkan frame ke **Raspberry Pi** melalui kabel LAN.
+3. **Raspberry Pi** mendeteksi wajah target, memotong foto wajah (*crop*), dan mengirimkannya ke Server GCP via **Modem USB 4G**.
+4. Server GCP meneruskan wajah ke **ML Service V2**, mengekstrak vektor identitasnya, dan mencocokkannya dengan database **pgvector**.
+5. Database menyatakan **COCOK** (misal skor kemiripan `92%`).
+6. **Alarm Berbunyi:**
+   - Di **Dashboard Web Command Center**, muncul pop-up merah dengan bunyi sirene dan lokasi kamera CCTV.
+   - Di **Aplikasi Mobile Petugas Lapangan**, masuk notifikasi instan bergetar yang menampilkan foto DPO, foto tangkapan CCTV, dan estimasi lokasi untuk penyergapan cepat.
+
+---
+
+### Skenario 3: Target Menyamar Menggunakan Masker dan Topi
+*Keunggulan utama (Novelty) sistem DISGUISE-ID.*
+
+1. DPO melintas dengan sengaja mengenakan masker medis menutupi hidung & mulut serta topi untuk mengelabui petugas.
+2. **Raspberry Pi** tetap mengenali struktur mata dan dahi sebagai wajah manusia dan mengirimkan hasil *crop* ke Cloud.
+3. **Fase De-Disguise (Stage20b Autoencoder):**
+   - ML Service mendeteksi adanya oklusi/penyamaran.
+   - Model **Stage20b SkipConnectedAutoencoder** merekonstruksi bagian wajah yang tertutup masker berdasarkan fitur mata dan kontur dahi, menghasilkan representasi wajah utuh tanpa masker.
+4. **Vektorisasi & Pencocokan Ulang:**
+   - Wajah yang telah direkonstruksi diekstrak menjadi vektor 512 dimensi.
+   - Database **pgvector** berhasil mencocokkan wajah rekonstruksi tersebut dengan foto asli DPO di database dengan tingkat keyakinan tinggi (misal `78%`).
+5. **Alarm Terpicu:** Petugas di posko dan penyidik di lapangan langsung menerima notifikasi bahwa DPO yang menyamar telah teridentifikasi dan siap diamankan.

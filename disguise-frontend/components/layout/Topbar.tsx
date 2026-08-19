@@ -11,9 +11,11 @@ const breadcrumbMap: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/dashboard/monitor': 'Live Monitor',
   '/dashboard/alerts': 'Alerts',
+  '/dashboard/ml-v2': 'ML V2',
   '/dashboard/watchlist': 'Watchlist',
-  '/dashboard/cases': 'Cases',
   '/dashboard/analytics': 'Analytics',
+  '/dashboard/users': 'Users',
+  '/dashboard/audit': 'Audit Trail',
   '/dashboard/settings': 'Settings',
 };
 
