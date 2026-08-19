@@ -79,7 +79,31 @@ export class CameraHealthService {
     const redis = getRedis();
     const now = Date.now().toString();
     await redis.set(`camera:${cameraId}:health:agentHeartbeatAt`, now, 'EX', 60);
-    // You could also log error code here if the payload contains it
+
+    try {
+      const camera = await prisma.cctvSource.findUnique({
+        where: { id: cameraId, deletedAt: null },
+        select: { id: true, status: true, organizationId: true }
+      });
+
+      if (camera) {
+        if (camera.status !== 'online') {
+          await prisma.cctvSource.update({
+            where: { id: cameraId },
+            data: { status: 'online', lastSeenAt: new Date() }
+          });
+          const { emitCameraStatus } = require('../../sockets');
+          emitCameraStatus(camera.organizationId, camera.id, 'online');
+        } else {
+          await prisma.cctvSource.update({
+            where: { id: cameraId },
+            data: { lastSeenAt: new Date() }
+          });
+        }
+      }
+    } catch (e) {
+      // Non-blocking
+    }
   }
 }
 
