@@ -1,256 +1,481 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { FaceScanRing } from '@/components/face-scan-ring/FaceScanRing';
 import { Button } from '@/components/ui/Button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faChevronDown, faCircle } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faChevronDown, faCircle, faShieldHalved, faBolt, faBrain } from '@fortawesome/free-solid-svg-icons';
 import CountUp from 'react-countup';
-import { MascotCanvas } from '@/components/mascot/MascotCanvasWrapper';
 
 const stats = [
-  { value: 40898, label: 'Wajah Tervalidasi', suffix: '', decimals: 0 },
-  { value: 97.5, label: 'Akurasi Verifikasi', suffix: '%', decimals: 1 },
-  { value: 0.99, label: 'ROC-AUC Score', suffix: '', decimals: 2 },
+  { value: 512, label: 'Biometric Vector', suffix: '-D', prefix: '', decimals: 0, icon: faBrain, color: '#00E5FF' },
+  { value: 0.5, label: 'WebRTC Latency', suffix: 's', prefix: '< ', decimals: 1, icon: faBolt, color: '#00CFE8' },
+  { value: 100, label: 'Edge & Cloud Sync', suffix: '%', prefix: '', decimals: 0, icon: faShieldHalved, color: '#00E676' },
 ];
 
+// 50 Seeded Floating White Dust Particles to ensure consistent SSR/CSR rendering
+const dustParticles = Array.from({ length: 50 }).map((_, i) => ({
+  id: i,
+  left: `${((i * 19 + 7) % 100)}%`,
+  top: `${((i * 23 + 13) % 100)}%`,
+  size: (i % 4 === 0 ? 2.5 : i % 3 === 0 ? 2 : 1.5),
+  opacity: 0.3 + ((i % 5) * 0.12),
+  duration: 8 + ((i % 7) * 2),
+  delay: ((i % 6) * 1.2),
+}));
+
 export const HeroSection: React.FC = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [showImageBg, setShowImageBg] = useState(false);
   const [phase, setPhase] = useState(0);
-  const [scanStatus, setScanStatus] = useState<'scanning' | 'match'>('scanning');
-  const [scanText, setScanText] = useState('SCANNING...');
   const [startCount, setStartCount] = useState(false);
 
   useEffect(() => {
+    // Timeline orchestration:
+    // 0s - 6s: Cinematic mascot intro video
+    // 7.0s: Phase 1 (Status badge appears)
+    // 7.8s: Phase 2 (Main Title appears)
+    // 8.6s: Phase 3 (Subtitle narration appears)
+    // 9.4s: Phase 4 (CTA Buttons appear)
+    // 10.0s: Video transitions to after-background.webp + Phase 5 (Stats appear & settled in center)
     const timers = [
-      setTimeout(() => setPhase(1), 300),
-      setTimeout(() => setPhase(2), 600),
-      setTimeout(() => setPhase(3), 800),
-      setTimeout(() => setPhase(4), 1000),
-      setTimeout(() => setPhase(5), 1200),
-      setTimeout(() => setPhase(6), 1800),
-      setTimeout(() => setPhase(7), 2200),
-      setTimeout(() => setStartCount(true), 2500),
-      setTimeout(() => { setScanStatus('match'); setScanText('IDENTITY CONFIRMED'); }, 2800),
+      setTimeout(() => setPhase(1), 7000),
+      setTimeout(() => setPhase(2), 7800),
+      setTimeout(() => setPhase(3), 8600),
+      setTimeout(() => setPhase(4), 9400),
+      setTimeout(() => {
+        setPhase(5);
+        setShowImageBg(true);
+        setVideoEnded(true);
+        setStartCount(true);
+      }, 10000),
     ];
+
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current && videoRef.current.currentTime >= 10 && !showImageBg) {
+      setShowImageBg(true);
+      setVideoEnded(true);
+      setPhase(5);
+      setStartCount(true);
+    }
+  };
 
   return (
     <section
       id="hero"
-      style={{ minHeight: '100vh', position: 'relative', display: 'flex', alignItems: 'center', background: '#0D1B2A' }}
+      style={{
+        minHeight: '100vh',
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        background: '#070F18',
+      }}
     >
-      {/* Holographic Grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 60 }}
-        animate={{ opacity: phase >= 1 ? 1 : 0, y: phase >= 1 ? 0 : 60 }}
-        transition={{ duration: 1, ease: 'easeOut' }}
+      {/* 1. Video Background (0 - 10s) */}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        onTimeUpdate={handleVideoTimeUpdate}
+        onEnded={() => {
+          setShowImageBg(true);
+          setVideoEnded(true);
+          setPhase(5);
+          setStartCount(true);
+        }}
         style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%',
-          overflow: 'hidden',
-          backgroundImage: 'linear-gradient(rgba(0, 151, 178, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 151, 178, 0.12) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-          transform: 'perspective(800px) rotateX(45deg)',
-          transformOrigin: 'center bottom',
-          maskImage: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 80%)',
-          WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 80%)',
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          zIndex: 1,
+          opacity: showImageBg ? 0 : 1,
+          transition: 'opacity 1.5s ease-in-out',
+          pointerEvents: 'none',
+        }}
+      >
+        <source src="/assets/background/main-section.mp4" type="video/mp4" />
+      </video>
+
+      {/* 2. After-Background Static Image (Appears smoothly after 10s) */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'url(/assets/background/after-background.webp)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          zIndex: 2,
+          opacity: showImageBg ? 1 : 0,
+          transition: 'opacity 1.5s ease-in-out',
           pointerEvents: 'none',
         }}
       />
 
-      {/* Particles */}
-      {phase >= 2 && (
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'clip' }}>
-          {Array.from({ length: 40 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                width: Math.random() * 3 + 1, height: Math.random() * 3 + 1,
-                borderRadius: '50%',
-                background: ['#0097B2', '#00E5FF', '#FF6B35'][i % 3],
-                left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%`,
-                opacity: Math.random() * 0.4 + 0.1,
-                animation: `float ${Math.random() * 6 + 4}s ease-in-out infinite`,
-                animationDelay: `${Math.random() * 4}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
+      {/* 3. Dark Sci-Fi Overlay & Vignette for Maximum Contrast */}
       <div
         style={{
-          maxWidth: '1400px', margin: '0 auto', padding: '120px 40px 80px',
-          display: 'grid', gridTemplateColumns: '1fr auto', gap: '40px',
-          alignItems: 'center', width: '100%',
+          position: 'absolute',
+          inset: 0,
+          background: showImageBg
+            ? 'radial-gradient(circle at center, rgba(7, 15, 24, 0.45) 0%, rgba(7, 15, 24, 0.85) 100%)'
+            : 'radial-gradient(circle at center, rgba(7, 15, 24, 0.2) 0%, rgba(7, 15, 24, 0.75) 100%)',
+          zIndex: 3,
+          pointerEvents: 'none',
+          transition: 'background 1.5s ease',
         }}
-        className="hero-grid"
-      >
-        {/* Left */}
-        <div>
-          <div style={{ marginBottom: '24px' }}>
-            <motion.h1
-              initial={{ opacity: 0 }}
-              animate={{ opacity: phase >= 5 ? 1 : 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 'clamp(36px, 5vw, 72px)', fontWeight: 800, color: '#E8F4F8', lineHeight: 1.1, marginBottom: '8px' }}>
-                WAJAH TERTUTUP?
-              </div>
-              <div style={{ fontFamily: 'Orbitron, monospace', fontSize: 'clamp(36px, 5vw, 72px)', fontWeight: 800, color: '#00E5FF', lineHeight: 1.1, textShadow: '0 0 30px rgba(0, 229, 255, 0.6)', animation: 'glitch 10s infinite' }}>
-                KAMI TETAP MENGENALINYA.
-              </div>
-            </motion.h1>
-          </div>
+      />
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: phase >= 4 ? 1 : 0 }}
+      {/* 4. Atmospheric Floating White Dust / Glowing Particles */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 4,
+          pointerEvents: 'none',
+          overflow: 'hidden',
+        }}
+      >
+        {dustParticles.map((p) => (
+          <div
+            key={p.id}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: '8px',
-              padding: '8px 16px',
-              background: 'rgba(0, 229, 255, 0.08)', border: '1px solid rgba(0, 229, 255, 0.2)',
-              borderRadius: '999px', marginBottom: '24px',
+              position: 'absolute',
+              left: p.left,
+              top: p.top,
+              width: `${p.size}px`,
+              height: `${p.size}px`,
+              borderRadius: '50%',
+              backgroundColor: '#FFFFFF',
+              boxShadow: '0 0 6px rgba(255, 255, 255, 0.9), 0 0 12px rgba(0, 229, 255, 0.6)',
+              opacity: p.opacity,
+              animation: `floatDust ${p.duration}s ease-in-out infinite`,
+              animationDelay: `${p.delay}s`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* 5. Holographic Grid on Bottom */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '45%',
+          backgroundImage:
+            'linear-gradient(rgba(0, 151, 178, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 151, 178, 0.1) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          transform: 'perspective(600px) rotateX(55deg)',
+          transformOrigin: 'center bottom',
+          maskImage: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%)',
+          WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%)',
+          zIndex: 5,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 6. Main Hero Content Container (Centered & Staggered Animation at 7-10s) */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 10,
+          maxWidth: '1100px',
+          margin: '0 auto',
+          padding: '140px 24px 80px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+        }}
+      >
+        {/* Step 1 (7.0s): System Status Badge */}
+        {/* <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: phase >= 1 ? 1 : 0, y: phase >= 1 ? 0 : -20 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '8px 20px',
+            background: 'rgba(17, 34, 54, 0.75)',
+            border: '1px solid rgba(0, 229, 255, 0.35)',
+            backdropFilter: 'blur(16px)',
+            borderRadius: '999px',
+            marginBottom: '24px',
+            boxShadow: '0 0 20px rgba(0, 229, 255, 0.2)',
+          }}
+        >
+          <FontAwesomeIcon
+            icon={faCircle}
+            style={{
+              fontSize: '8px',
+              color: '#00E676',
+              filter: 'drop-shadow(0 0 8px #00E676)',
+              animation: 'pulseGlow 1.2s ease-in-out infinite',
+            }}
+          />
+          <span
+            style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '13px',
+              color: '#E8F4F8',
+              letterSpacing: '0.05em',
+              fontWeight: 600,
             }}
           >
-            <FontAwesomeIcon
-              icon={faCircle}
-              style={{
-                fontSize: '8px',
-                color: scanStatus === 'match' ? '#00E676' : '#00E5FF',
-                filter: `drop-shadow(0 0 6px ${scanStatus === 'match' ? '#00E676' : '#00E5FF'})`,
-                animation: 'pulseGlow 1s ease-in-out infinite',
-              }}
-            />
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '13px', color: scanStatus === 'match' ? '#00E676' : '#00E5FF', fontWeight: 500 }}>
-              {scanText}
-            </span>
-          </motion.div>
+            DISGUISE-ID ACTIVE — REAL-TIME SURVEILLANCE
+          </span>
+        </motion.div> */}
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: phase >= 6 ? 1 : 0, y: phase >= 6 ? 0 : 20 }}
-            transition={{ duration: 0.5 }}
-            style={{ fontFamily: 'Inter, sans-serif', fontSize: '18px', color: '#8BAFC4', maxWidth: '520px', lineHeight: 1.7, marginBottom: '40px' }}
-          >
-            Sistem verifikasi wajah berteknologi AI untuk keamanan publik berbasis CCTV pintar.
-            Akurat meski wajah tertutup masker, helm, atau kacamata.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: phase >= 7 ? 1 : 0, scale: phase >= 7 ? 1 : 0.9 }}
-            transition={{ duration: 0.4 }}
-            style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '60px' }}
-          >
-            <Link href="/login">
-              <Button variant="fox" size="lg" id="hero-demo-btn">
-                <FontAwesomeIcon icon={faRocket} style={{ marginRight: '8px' }} />
-                Mulai Demo
-              </Button>
-            </Link>
-            <button
-              onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+        {/* Step 2 (7.8s): Main Title */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 30 }}
+          animate={{
+            opacity: phase >= 2 ? 1 : 0,
+            scale: phase >= 2 ? 1 : 0.95,
+            y: phase >= 2 ? 0 : 30,
+          }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{ marginBottom: '24px' }}
+        >
+          <h1 style={{ margin: 0 }}>
+            <div
               style={{
-                padding: '14px 32px', borderRadius: '999px', background: 'transparent',
-                border: '1px solid rgba(0, 229, 255, 0.3)', color: '#00CFE8',
-                fontSize: '16px', fontWeight: 600, fontFamily: 'Inter, sans-serif',
-                cursor: 'pointer', transition: 'all 0.2s ease',
-                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                fontFamily: 'Orbitron, monospace',
+                fontSize: 'clamp(32px, 5.5vw, 68px)',
+                fontWeight: 800,
+                color: '#E8F4F8',
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                marginBottom: '8px',
+                textShadow: '0 4px 24px rgba(0,0,0,0.8)',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)'; e.currentTarget.style.borderColor = '#00E5FF'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.3)'; }}
             >
-              Pelajari Lebih Lanjut
-              <FontAwesomeIcon icon={faChevronDown} style={{ fontSize: '13px' }} />
-            </button>
-          </motion.div>
+              WAJAH TERTUTUP?
+            </div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: startCount ? 1 : 0, y: startCount ? 0 : 20 }}
-            transition={{ duration: 0.6 }}
-            style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}
+            <div
+              style={{
+                fontFamily: 'Orbitron, monospace',
+                fontSize: 'clamp(32px, 5.5vw, 68px)',
+                fontWeight: 800,
+                color: '#00E5FF',
+                lineHeight: 1.15,
+                letterSpacing: '-0.02em',
+                textShadow: '0 0 25px rgba(0, 229, 255, 0.6), 2px 2px 0px rgba(255, 107, 53, 0.85)',
+                animation: 'glitch 10s infinite',
+              }}
+            >
+              <div>KAMI TETAP</div>
+              <div>MENGENALINYA.</div>
+            </div>
+          </h1>
+        </motion.div>
+
+        {/* Step 3 (8.6s): Subtitle Narration */}
+        <motion.p
+          initial={{ opacity: 0, y: 25 }}
+          animate={{ opacity: phase >= 3 ? 1 : 0, y: phase >= 3 ? 0 : 25 }}
+          transition={{ duration: 0.7, ease: 'easeOut' }}
+          style={{
+            fontFamily: 'Inter, sans-serif',
+            fontSize: 'clamp(15px, 2vw, 18px)',
+            color: '#B0CFE2',
+            maxWidth: '680px',
+            lineHeight: 1.7,
+            marginBottom: '36px',
+            textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+          }}
+        >
+          Sistem intelijen pengenalan wajah taktis berbasis <strong>Edge AI (Raspberry Pi)</strong> dan <strong>Cloud DeepFace</strong>.
+          Mendeteksi identitas DPO secara instan meski wajah tersamar masker, helm, atau kacamata hitam.
+        </motion.p>
+
+        {/* Step 4 (9.4s): Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: phase >= 4 ? 1 : 0, y: phase >= 4 ? 0 : 20 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{
+            display: 'flex',
+            gap: '16px',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            marginBottom: '48px',
+          }}
+        >
+          <Link href="/login">
+            <Button variant="fox" size="lg" id="hero-demo-btn">
+              <FontAwesomeIcon icon={faRocket} style={{ marginRight: '10px' }} />
+              Buka Dashboard Command Center
+            </Button>
+          </Link>
+          <button
+            onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+            style={{
+              padding: '14px 28px',
+              borderRadius: '999px',
+              background: 'rgba(17, 34, 54, 0.6)',
+              border: '1px solid rgba(0, 229, 255, 0.35)',
+              backdropFilter: 'blur(12px)',
+              color: '#00CFE8',
+              fontSize: '15px',
+              fontWeight: 600,
+              fontFamily: 'Inter, sans-serif',
+              cursor: 'pointer',
+              transition: 'all 0.25s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)';
+              e.currentTarget.style.borderColor = '#00E5FF';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(17, 34, 54, 0.6)';
+              e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.35)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
           >
-            {stats.map((stat) => (
+            Pelajari Arsitektur
+            <FontAwesomeIcon icon={faChevronDown} style={{ fontSize: '12px' }} />
+          </button>
+        </motion.div>
+
+        {/* Step 5 (10.0s+): Verified Capabilities Stats (Settled in Center) */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: phase >= 5 ? 1 : 0, y: phase >= 5 ? 0 : 30 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '20px',
+            width: '100%',
+            maxWidth: '820px',
+          }}
+          className="hero-stats-grid"
+        >
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              style={{
+                padding: '18px 24px',
+                background: 'rgba(17, 34, 54, 0.75)',
+                border: '1px solid rgba(0, 229, 255, 0.2)',
+                backdropFilter: 'blur(20px)',
+                borderRadius: '18px',
+                textAlign: 'center',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              }}
+            >
               <div
-                key={stat.label}
                 style={{
-                  padding: '20px 24px',
-                  background: 'rgba(17, 34, 54, 0.60)', border: '1px solid rgba(0, 229, 255, 0.15)',
-                  backdropFilter: 'blur(16px)', borderRadius: '16px', minWidth: '140px',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 'clamp(22px, 3vw, 30px)',
+                  fontWeight: 800,
+                  color: stat.color,
+                  textShadow: `0 0 20px ${stat.color}66`,
+                  marginBottom: '4px',
                 }}
               >
-                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: 700, color: '#00E5FF', textShadow: '0 0 20px rgba(0,229,255,0.5)' }}>
-                  {startCount ? (
-                    <CountUp end={stat.value} duration={2} decimals={stat.decimals} separator="," suffix={stat.suffix} />
-                  ) : '0'}
-                </div>
-                <div style={{ fontSize: '12px', color: '#8BAFC4', marginTop: '4px', fontFamily: 'Inter, sans-serif' }}>
-                  {stat.label}
-                </div>
+                {startCount ? (
+                  <>
+                    {stat.prefix}
+                    <CountUp
+                      end={stat.value}
+                      duration={1.8}
+                      decimals={stat.decimals}
+                      separator=","
+                      suffix={stat.suffix}
+                    />
+                  </>
+                ) : (
+                  '0'
+                )}
               </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* Right: Maskot 3D */}
-        <motion.div
-          initial={{ opacity: 0, x: 60 }}
-          animate={{ opacity: phase >= 3 ? 1 : 0, x: phase >= 3 ? 0 : 60 }}
-          transition={{ duration: 0.8, type: 'spring', stiffness: 100, damping: 20 }}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', flexShrink: 0 }}
-          className="hero-maskot"
-        >
-          {/* Canvas container — perfectly centered with responsive dimensions */}
-          <div style={{ position: 'relative', width: '100%', maxWidth: '460px', height: '480px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="mascot-canvas-box">
-            {/* Three.js Canvas fills the container automatically */}
-            {phase >= 3 && (
-              <MascotCanvas width="100%" height="100%" />
-            )}
-            {/* HUD Ring overlay — pointer-events none so canvas remains interactive */}
-            <div
-              className="face-scan-hud"
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'none',
-              }}
-            >
-              <FaceScanRing size={340} isScanning={phase >= 4} matchStatus={scanStatus}>
-                {/* Empty — canvas behind provides the visual */}
-                <div style={{ width: 260, height: 300 }} />
-              </FaceScanRing>
+              <div
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#8BAFC4',
+                  fontFamily: 'Inter, sans-serif',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {stat.label}
+              </div>
             </div>
-          </div>
+          ))}
         </motion.div>
       </div>
 
       <style>{`
-        .hero-grid {
-          grid-template-columns: minmax(0, 1.2fr) minmax(320px, 460px);
-          justify-content: space-between;
-          align-items: center;
+        @keyframes floatDust {
+          0% {
+            transform: translateY(0px) translateX(0px);
+            opacity: 0.2;
+          }
+          50% {
+            transform: translateY(-30px) translateX(15px);
+            opacity: 0.85;
+          }
+          100% {
+            transform: translateY(-60px) translateX(-10px);
+            opacity: 0.2;
+          }
         }
-        @media (max-width: 960px) {
-          .hero-grid { grid-template-columns: 1fr !important; gap: 40px !important; padding: 110px 24px 70px !important; text-align: left; }
-          .hero-maskot { width: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; order: -1 !important; margin: 0 auto 10px auto !important; }
-          .mascot-canvas-box { max-width: 380px !important; height: 390px !important; transform: none !important; }
-          .face-scan-hud { transform: scale(0.95); }
+        @keyframes saberSweep {
+          0% {
+            background-position: 200% center;
+          }
+          100% {
+            background-position: -200% center;
+          }
         }
-        @media (max-width: 500px) {
-          .hero-grid { padding: 90px 16px 50px !important; gap: 25px !important; }
-          .hero-maskot { width: 100% !important; margin: 0 auto 5px auto !important; order: -1 !important; }
-          .mascot-canvas-box { max-width: 300px !important; height: 320px !important; }
-          .face-scan-hud { transform: scale(0.82); transform-origin: center center; }
-          #hero-demo-btn { width: 100% !important; justify-content: center !important; }
+        @keyframes saberGlowPulse {
+          0%, 100% {
+            filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.8));
+          }
+          50% {
+            filter: drop-shadow(0 0 22px rgba(0, 229, 255, 1)) drop-shadow(0 0 35px #FFFFFF);
+          }
+        }
+        @keyframes saberLaserSweep {
+          0% {
+            left: -60%;
+            opacity: 0;
+          }
+          25% {
+            opacity: 1;
+          }
+          75% {
+            opacity: 1;
+          }
+          100% {
+            left: 110%;
+            opacity: 0;
+          }
+        }
+        @media (max-width: 768px) {
+          .hero-stats-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
         }
       `}</style>
     </section>

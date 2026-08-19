@@ -51,10 +51,10 @@ export const AboutSection: React.FC = () => {
                   <h3 style={{ fontFamily: 'Orbitron, monospace', fontSize: '16px', fontWeight: 700, color: '#00E5FF' }}>SOLUSI</h3>
                 </div>
                 <p style={{ color: '#8BAFC4', fontSize: '15px', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' }}>
-                  DISGUISE-ID menggunakan <strong style={{ color: '#E8F4F8' }}>Triplet Loss + Batch-Hard Negative Mining</strong> untuk mengenali identitas secara langsung — tanpa perlu rekonstruksi gambar terlebih dahulu. Model dilatih khusus pada dataset wajah dengan berbagai kondisi oklusi.
+                  DISGUISE-ID menggabungkan <strong style={{ color: '#E8F4F8' }}>Stage20b De-Disguise Autoencoder</strong> dan <strong style={{ color: '#E8F4F8' }}>InceptionResNet (512-D Embedding)</strong> untuk mengekstrak ciri biometrik wajah yang invarian terhadap penyamaran (masker, kacamata, topi) dan memvalidasinya secara instan melalui database vektor.
                 </p>
                 <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {['InceptionResNetV1', 'VGGFace2', 'pgvector HNSW'].map((tech) => (
+                  {['RetinaFace Edge', 'Stage20b Autoencoder', 'InceptionResNet', 'pgvector HNSW'].map((tech) => (
                     <span key={tech} style={{ padding: '4px 12px', borderRadius: '999px', background: 'rgba(0, 151, 178, 0.15)', border: '1px solid rgba(0, 151, 178, 0.3)', color: '#00CFE8', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace' }}>
                       {tech}
                     </span>
@@ -82,15 +82,15 @@ export const AboutSection: React.FC = () => {
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '10px', color: '#00E676' }}>MATCH</span>
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '36px', fontWeight: 700, color: '#00E676', textShadow: '0 0 20px rgba(0, 230, 118, 0.5)' }}>97.5%</div>
-                    <div style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>akurasi</div>
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: 700, color: '#00E676', textShadow: '0 0 20px rgba(0, 230, 118, 0.5)' }}>512-D</div>
+                    <div style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>Biometric Match</div>
                   </div>
                 </div>
 
                 <div style={{ width: '100%', padding: '16px', background: 'rgba(0, 151, 178, 0.08)', borderRadius: '12px', border: '1px solid rgba(0, 151, 178, 0.15)' }}>
-                  <div style={{ color: '#4A6B84', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Embedding Distance</div>
-                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '24px', color: '#00E5FF' }}>0.312</div>
-                  <div style={{ color: '#8BAFC4', fontSize: '12px' }}>cosine similarity</div>
+                  <div style={{ color: '#4A6B84', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Biometric Distance Metric</div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '22px', color: '#00E5FF' }}>Euclidean L2 & Cosine</div>
+                  <div style={{ color: '#8BAFC4', fontSize: '12px', marginTop: '4px' }}>Fast Vector Search via pgvector</div>
                 </div>
               </div>
             </GlassCard>

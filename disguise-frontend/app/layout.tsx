@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: 'DISGUISE-ID — AI Face Recognition Security System',
   description: 'Sistem verifikasi wajah berteknologi AI untuk keamanan publik berbasis CCTV pintar. Deteksi identitas meski wajah tertutup masker, helm, atau kacamata.',
   keywords: 'face recognition, AI security, CCTV, disguise detection, wajah tersembunyi',
+  icons: {
+    icon: '/assets/logo.png',
+    shortcut: '/assets/logo.png',
+    apple: '/assets/logo.png',
+  },
   openGraph: {
     title: 'DISGUISE-ID — AI Face Recognition Security System',
     description: 'Sistem verifikasi wajah berteknologi AI untuk keamanan publik',
@@ -21,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="id" data-scroll-behavior="smooth">
       <head>
+        <link rel="icon" href="/assets/logo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

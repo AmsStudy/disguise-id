@@ -14,26 +14,26 @@ const steps = [
   {
     num: '01',
     icon: faVideo,
-    title: 'Kamera Capture',
-    description: 'Kamera CCTV menangkap frame secara berkelanjutan dan mengirimkan ke sistem inferensi.',
+    title: 'Edge CCTV Capture (LAN)',
+    description: 'CCTV Tapo mengalirkan dual-stream ke Raspberry Pi via jaringan kabel LAN lokal tanpa tergantung cloud.',
   },
   {
     num: '02',
     icon: faMagnifyingGlass,
-    title: 'Deteksi Otomatis',
-    description: 'AI mendeteksi wajah + kondisi oklusi (masker, helm, topi) secara otomatis.',
+    title: 'Edge AI & 4G Cellular Uplink',
+    description: 'Raspberry Pi mendeteksi wajah (RetinaFace), memfilter blur, dan mengirim data via Modem USB 4G ke GCP.',
   },
   {
     num: '03',
     icon: faNetworkWired,
-    title: 'Cocokkan Watchlist',
-    description: 'Embedding 512-dim dibandingkan ke seluruh watchlist via HNSW index — akurasi 97.5%.',
+    title: 'De-Disguise & pgvector Match',
+    description: 'ML Service V2 membuka penyamaran target (Autoencoder) & mencocokkan vektor 512-D di PostgreSQL.',
   },
   {
     num: '04',
     icon: faBell,
-    title: 'Alert Operator',
-    description: 'Notifikasi real-time ke operator dengan detail lokasi, waktu, dan skor kecocokan.',
+    title: 'Cross-Platform Alert',
+    description: 'Notifikasi instan terkirim serentak ke Web Command Center dan aplikasi mobile petugas di lapangan.',
   },
 ];
 
@@ -239,9 +239,9 @@ export const HowItWorksSection: React.FC = () => {
           </div>
           <div style={{ display: 'flex', gap: '32px' }}>
             {[
-              { v: '<1s', l: 'Total Latency' },
-              { v: '97.5%', l: 'Akurasi' },
-              { v: '0.9927', l: 'ROC-AUC' },
+              { v: '<1s', l: 'End-to-End Latency' },
+              { v: '512-D', l: 'Feature Embedding' },
+              { v: '<0.5s', l: 'WebRTC Delay' },
             ].map((m) => (
               <div key={m.l} style={{ textAlign: 'center' }}>
                 <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '20px', color: '#00E5FF', fontWeight: 700 }}>
