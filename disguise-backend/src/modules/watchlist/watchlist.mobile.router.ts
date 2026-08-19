@@ -37,6 +37,43 @@ watchlistMobileRouter.get(
   }
 );
 
+// GET /watchlist/:id
+watchlistMobileRouter.get(
+  '/:id',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { id } = req.params;
+
+      const person = await prisma.watchlistPerson.findFirst({
+        where: { id, organizationId: orgId, deletedAt: null },
+        include: {
+          photos: { select: { id: true, photoUrl: true, isPrimary: true } }
+        }
+      });
+
+      if (!person) throw notFound('Person');
+
+      const mobileData = {
+        id: person.id,
+        full_name: person.fullName,
+        danger_level: person.dangerLevel,
+        photo_url: person.photoUrl || '',
+        case_number: person.caseReference || 'N/A',
+        notes: person.description || '',
+        aliases: person.alias || [],
+        photos: person.photos.map(p => ({ id: p.id, url: p.photoUrl, is_primary: p.isPrimary })),
+        created_at: person.createdAt
+      };
+
+      sendSuccess(res, mobileData);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // GET /watchlist/:id/trail
 watchlistMobileRouter.get(
   '/:id/trail',
