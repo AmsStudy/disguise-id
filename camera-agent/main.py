@@ -30,6 +30,7 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         "-rtsp_transport", "tcp",
         "-i", local_rtsp_url,
         "-c", "copy",
+        "-rtsp_transport", "tcp",
         "-f", "rtsp",
         push_url
     ]
