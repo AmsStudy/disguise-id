@@ -209,7 +209,7 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
   }, [cameraId]);
 
   return (
-    <div className="relative w-full max-w-4xl mx-auto overflow-hidden rounded-2xl bg-gray-950 shadow-2xl border border-gray-800">
+    <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10 text-red-400 font-semibold p-4 text-center">
           <p>Terjadi kesalahan memuat stream CCTV:<br/>{error}</p>
@@ -219,26 +219,25 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
       {/* 
         Video Properties:
         - autoPlay & muted & playsInline: Crucial for allowing autoplay in modern browsers
-        - object-cover: Ensures the stream fills the container cleanly
+        - object-contain: Ensures the whole stream is visible
       */}
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="w-full aspect-video object-cover"
+        className="w-full h-full object-contain"
       />
       
       {/* Canvas for Live Bounding Box Overlay */}
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ objectFit: 'cover' }}
+        className="absolute inset-0 w-full h-full pointer-events-none object-contain"
       />
       
-      <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-semibold backdrop-blur-md">
+      <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/60 text-white px-4 py-2 rounded-full text-sm font-semibold backdrop-blur-md">
         <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-        LIVE CAMERA (Tapo)
+        LIVE CAMERA
       </div>
       
       <div className="absolute bottom-4 right-4 bg-black/60 text-white/80 px-3 py-1 rounded-md text-xs font-mono backdrop-blur-sm">

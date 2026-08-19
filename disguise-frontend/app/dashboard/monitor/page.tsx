@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faRotateRight, faExpand, faVideo, faSatelliteDish, faWrench, faUser, faXmark, faPen, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faExpand, faVideo, faSatelliteDish, faWrench, faXmark, faPen, faTrash, faInfoCircle, faCamera, faRotateRight, faServer } from '@fortawesome/free-solid-svg-icons';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { Badge } from '@/components/ui/Badge';
@@ -12,13 +12,6 @@ import { Input } from '@/components/ui/Input';
 import { cameraApi, systemApi } from '@/services/api';
 import type { Camera } from '@/types';
 import LiveCamera from '@/components/LiveCamera';
-
-const emptyCamera: Camera = {
-  id: '',
-  name: '',
-  status: 'offline',
-  location: '',
-};
 
 export default function MonitorPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -35,6 +28,7 @@ export default function MonitorPage() {
   const [healthData, setHealthData] = useState<any>(null);
   const [systemHealth, setSystemHealth] = useState<{ available: boolean; reason: string } | null>(null);
   const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string, key: string } | null>(null);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
 
   const [name, setName] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -82,10 +76,9 @@ export default function MonitorPage() {
         ]);
         setHealthData(resCamera.data.data);
         if (resSystem.data.data.preview.available === false) {
-           // We can store this in a state or just use it
-           setSystemHealth(resSystem.data.data.preview);
+          setSystemHealth(resSystem.data.data.preview);
         } else {
-           setSystemHealth({ available: true, reason: 'OK' });
+          setSystemHealth({ available: true, reason: 'OK' });
         }
       } catch (err) {
         setHealthData(null);
@@ -200,336 +193,350 @@ export default function MonitorPage() {
   }, []);
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontFamily: 'Orbitron, monospace', fontSize: '20px', fontWeight: 700, color: '#E8F4F8' }}>Live Monitor</h1>
-          <p style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>Tambah dan pantau kamera CCTV langsung dari panel ini.</p>
+    <div className="flex flex-col gap-6 h-full w-full max-w-[1920px] mx-auto">
+      {/* Refined Header Section: Removed redundant H1 title */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#00E5FF]/10 flex items-center justify-center border border-[#00E5FF]/30">
+            <FontAwesomeIcon icon={faServer} className="text-[#00E5FF]" />
+          </div>
+          <div>
+            <p className="text-[#8BAFC4] text-sm leading-tight">Edge Infrastructure</p>
+            <h2 className="text-[#E8F4F8] font-bold text-lg leading-tight">Command Center</h2>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button variant="secondary" size="md" onClick={fetchCameras} disabled={loading}>
-            {loading ? 'Memuat...' : 'Muat Ulang Kamera'}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" size="md" onClick={fetchCameras} disabled={loading} className="bg-black/40 hover:bg-black/60 border-white/10">
+            {loading ? 'Memuat...' : 'Refresh Network'}
           </Button>
-          <Button variant="fox" size="md" onClick={() => setIsModalOpen(true)}>
-            <FontAwesomeIcon icon={faPlus} /> Tambah Monitor
+          <Button variant="fox" size="md" onClick={() => setIsModalOpen(true)} className="shadow-[0_0_15px_rgba(255,107,53,0.3)]">
+            <FontAwesomeIcon icon={faPlus} className="mr-2" /> Register Device
           </Button>
         </div>
       </div>
 
       {errorMessage && (
-        <div style={{ marginBottom: '16px', color: '#FF6B35', fontWeight: 600 }}>{errorMessage}</div>
+        <div className="text-[#FF6B35] font-semibold shrink-0 bg-[#FF6B35]/10 p-3 rounded-lg border border-[#FF6B35]/30">
+          {errorMessage}
+        </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }} className="camera-grid">
-        {cameras.map((cam) => (
-          <motion.div key={cam.id} whileHover={{ scale: 1.02 }} transition={{ duration: 0.15 }}>
-            <GlassCard
-              style={{
-                padding: '16px',
-                cursor: 'pointer',
-                borderColor: selected?.id === cam.id ? '#00E5FF' : undefined,
-                boxShadow: selected?.id === cam.id ? '0 0 20px rgba(0,229,255,0.3)' : undefined,
-              }}
-              onClick={() => setSelectedCameraId(cam.id)}
-            >
-              <div
-                style={{
-                  width: '100%',
-                  aspectRatio: '16/9',
-                  background: cam.status === 'offline'
-                    ? 'repeating-linear-gradient(45deg, #060D14, #060D14 10px, #0D1B2A 10px, #0D1B2A 20px)'
-                    : 'linear-gradient(135deg, #0D1B2A, #112236)',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '12px',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  border: '1px solid rgba(0,229,255,0.08)',
-                }}
-              >
-                {cam.status === 'online' ? (
-                  <>
-                    <div style={{ fontSize: '36px', opacity: 0.3, color: '#E8F4F8' }}><FontAwesomeIcon icon={faVideo} /></div>
-                    {cam.alertCount && cam.alertCount > 0 && (
-                      <div style={{ position: 'absolute', inset: 0, border: '2px solid #FF6B35', borderRadius: '10px', animation: 'pulseGlow 1.5s ease-in-out infinite' }} />
-                    )}
-                    <div style={{ position: 'absolute', top: 8, right: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,230,118,0.2)', border: '1px solid rgba(0,230,118,0.3)', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', color: '#00E676', fontFamily: 'JetBrains Mono, monospace' }}>
-                        ● LIVE
-                      </div>
+      {/* Main Layout: Fixed Flex heights for true responsiveness */}
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-[600px] lg:min-h-0">
+
+        {/* Sidebar: Camera List */}
+        <div className="w-full lg:w-[320px] xl:w-[360px] shrink-0 flex flex-col">
+          <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0 border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+            <div className="bg-gradient-to-b from-white/5 to-transparent border-b border-white/10 px-8 py-6 shrink-0 flex items-center justify-between">
+              <h2 className="font-orbitron text-sm font-bold text-[#00E5FF] tracking-wider uppercase flex items-center">
+                <FontAwesomeIcon icon={faCamera} className="mr-3 text-[#E8F4F8]" /> Daftar Kamera
+              </h2>
+              <Badge variant="info" className="!bg-[#00E5FF]/10 !text-[#00E5FF] !border-[#00E5FF]/30">{cameras.length}</Badge>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-black/10">
+              {cameras.map((cam) => (
+                <motion.div
+                  key={cam.id}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedCameraId(cam.id)}
+                  className={`p-4 rounded-xl cursor-pointer border transition-all duration-200 flex items-center justify-between group relative overflow-hidden ${selected?.id === cam.id
+                    ? 'bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 border-[#00E5FF]/50 shadow-[inset_4px_0_0_#00E5FF]'
+                    : 'bg-black/20 border-white/5 hover:border-[#00E5FF]/30 hover:bg-black/40'
+                    }`}
+                >
+                  {/* Subtle active glow */}
+                  {selected?.id === cam.id && (
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#00E5FF]/10 blur-3xl rounded-full pointer-events-none" />
+                  )}
+
+                  <div className="flex items-center gap-4 truncate relative z-10">
+                    <div className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center border ${cam.status === 'online' ? 'bg-[#00E676]/10 border-[#00E676]/30 text-[#00E676]' :
+                      cam.status === 'offline' ? 'bg-[#FF3D3D]/10 border-[#FF3D3D]/30 text-[#FF3D3D]' :
+                        'bg-[#FFD600]/10 border-[#FFD600]/30 text-[#FFD600]'
+                      }`}>
+                      <FontAwesomeIcon icon={cam.status === 'online' ? faVideo : cam.status === 'offline' ? faSatelliteDish : faWrench} className="text-[15px]" />
                     </div>
-                  </>
-                ) : cam.status === 'offline' ? (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', marginBottom: '4px', color: '#FF3D3D' }}><FontAwesomeIcon icon={faSatelliteDish} /></div>
-                    <div style={{ fontSize: '11px', color: '#FF3D3D', fontFamily: 'Inter, sans-serif' }}>NO SIGNAL</div>
+                    <div className="truncate">
+                      <h3 className="text-[15px] font-semibold text-[#E8F4F8] truncate font-inter">{cam.name}</h3>
+                      <p className="text-xs text-[#8BAFC4] truncate mt-1 flex items-center gap-1.5">
+                        <StatusDot status={cam.status} /> {cam.location}
+                      </p>
+                    </div>
                   </div>
-                ) : (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', marginBottom: '4px', color: '#FFD600' }}><FontAwesomeIcon icon={faWrench} /></div>
-                    <div style={{ fontSize: '11px', color: '#FFD600', fontFamily: 'Inter, sans-serif' }}>MAINTENANCE</div>
-                  </div>
-                )}
+                  {cam.alertCount ? (
+                    <Badge variant="high" className="!px-2 !py-1 !text-xs relative z-10">{cam.alertCount}</Badge>
+                  ) : null}
+                </motion.div>
+              ))}
+              {cameras.length === 0 && !loading && (
+                <div className="text-center text-[#8BAFC4] text-sm py-10 flex flex-col items-center">
+                  <FontAwesomeIcon icon={faCamera} className="text-4xl text-white/10 mb-3" />
+                  Belum ada kamera terdaftar.
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* Live Feed Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <GlassCard className="flex-1 flex flex-col relative overflow-hidden group !p-0 border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.3)] bg-black/40">
+            {/* Feed Header - Transparent to blend with GlassCard */}
+            <div className="w-full shrink-0 px-6 py-5 bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-4 z-10 backdrop-blur-md">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3">
+                  <h2 className="font-orbitron text-2xl font-bold text-white drop-shadow-lg truncate tracking-wide">
+                    {selected?.name ?? 'Pilih Kamera'}
+                  </h2>
+                  {selected && <StatusDot status={selected.status} showLabel />}
+                </div>
+                <p className="text-[#00E5FF] text-sm mt-1 font-mono truncate tracking-wider opacity-80">{selected?.location ?? ''}</p>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#E8F4F8', fontFamily: 'Inter, sans-serif' }}>{cam.name}</div>
-                  <div style={{ fontSize: '11px', color: '#4A6B84', marginTop: '2px' }}>{cam.location}</div>
+              {selected && (
+                <div className="flex flex-wrap gap-2 shrink-0 bg-black/30 p-1.5 rounded-xl border border-white/10">
+                  <button
+                    onClick={() => setShowInfoPanel(!showInfoPanel)}
+                    className={`w-10 h-10 rounded-lg backdrop-blur-md transition-all flex items-center justify-center ${showInfoPanel ? 'bg-[#00E5FF] text-black shadow-[0_0_15px_rgba(0,229,255,0.5)]' : 'text-[#8BAFC4] hover:bg-white/10 hover:text-white'}`}
+                    title="Telemetri"
+                  >
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                  </button>
+                  <div className="w-px h-6 bg-white/10 my-auto mx-1" />
+                  <button
+                    onClick={() => handleEditClick(selected)}
+                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#FFD600]/20 hover:text-[#FFD600] transition-colors flex items-center justify-center"
+                    title="Edit Kamera"
+                  >
+                    <FontAwesomeIcon icon={faPen} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setTestingConnection(true);
+                      setConnectionMessage('');
+                      try {
+                        const response = await cameraApi.testConnection(selected.id);
+                        setConnectionMessage(response.data.data.message || 'Koneksi RTSP berhasil.');
+                        setShowInfoPanel(true);
+                      } catch (err) {
+                        setConnectionMessage('Gagal terhubung ke kamera.');
+                        setShowInfoPanel(true);
+                      } finally {
+                        setTestingConnection(false);
+                      }
+                    }}
+                    disabled={testingConnection}
+                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#00E5FF]/20 hover:text-[#00E5FF] transition-colors disabled:opacity-50 flex items-center justify-center"
+                    title="Test Connection"
+                  >
+                    <FontAwesomeIcon icon={testingConnection ? faRotateRight : faSatelliteDish} className={testingConnection ? "animate-spin" : ""} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(selected)}
+                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#FF3D3D]/20 hover:text-[#FF3D3D] transition-colors flex items-center justify-center"
+                    title="Hapus Kamera"
+                  >
+                    <FontAwesomeIcon icon={faTrash} />
+                  </button>
+                  <div className="w-px h-6 bg-white/10 my-auto mx-1" />
+                  <button
+                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-white/10 hover:text-white transition-colors flex items-center justify-center"
+                    title="Fullscreen"
+                  >
+                    <FontAwesomeIcon icon={faExpand} />
+                  </button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                  <StatusDot status={cam.status} showLabel />
-                  {cam.alertCount ? <Badge variant="high">{cam.alertCount} alert</Badge> : null}
+              )}
+            </div>
+
+            {/* Video Container - Pure black for video player contrast */}
+            <div className="flex-1 bg-black flex items-center justify-center relative w-full h-full min-h-[300px]">
+              {/* Optional: Subtle grid background when empty */}
+              <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-[0.02] pointer-events-none" />
+
+              {systemHealth?.available === false ? (
+                <div className="flex flex-col items-center p-6 text-center z-10">
+                  <FontAwesomeIcon icon={faVideo} className="text-6xl text-[#FF3D3D]/30 mb-4" />
+                  <div className="text-[#FF3D3D] text-lg font-bold font-inter">
+                    Preview Unavailable
+                    <div className="text-sm text-[#A5F3FC] font-mono mt-3 p-3 bg-[#FF3D3D]/10 rounded-lg border border-[#FF3D3D]/30 inline-block">{systemHealth.reason}</div>
+                  </div>
                 </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        ))}
+              ) : selected?.status === 'online' ? (
+                <LiveCamera cameraId={selected.id} />
+              ) : previewUrl ? (
+                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain relative z-10" />
+              ) : (
+                <div className="flex flex-col items-center p-6 text-center z-10">
+                  <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10">
+                    <FontAwesomeIcon icon={faVideo} className="text-4xl text-white/20" />
+                  </div>
+                  <div className="text-[#8BAFC4] text-base font-inter mb-2">
+                    {loadingPreview ? 'Menyambungkan ke stream...' : (selected ? 'Perangkat sedang offline' : 'Silakan pilih kamera')}
+                  </div>
+                  {selected && (
+                    <div className="text-[11px] text-[#00CFE8] font-mono bg-[#00CFE8]/10 px-4 py-2 rounded-lg border border-[#00CFE8]/20 inline-block tracking-wider">
+                      AGENT ID: {selected.id.split('-')[0]}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Info Overlay Panel */}
+              <AnimatePresence>
+                {showInfoPanel && selected && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 10, x: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 10, x: 10 }}
+                    className="absolute top-4 right-4 w-[340px] bg-[#060D14]/95 backdrop-blur-2xl border border-[#00E5FF]/30 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20"
+                  >
+                    <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
+                      <h4 className="text-[13px] font-bold text-[#00E5FF] uppercase tracking-widest flex items-center">
+                        <FontAwesomeIcon icon={faServer} className="mr-2" /> Telemetri Edge
+                      </h4>
+                      <button onClick={() => setShowInfoPanel(false)} className="text-[#8BAFC4] hover:text-white bg-white/5 rounded-full w-7 h-7 flex items-center justify-center transition-colors">
+                        <FontAwesomeIcon icon={faXmark} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="text-[11px] text-[#8BAFC4] font-semibold mb-1">Stream URL</div>
+                        <div className="text-xs text-[#E8F4F8] font-mono break-all bg-black/50 p-2.5 rounded-lg border border-white/5">{selected.streamUrl || 'Tidak ada URL'}</div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-black/50 p-3 rounded-xl border border-[#00E676]/20">
+                          <div className="text-[11px] text-[#8BAFC4] mb-1">Current FPS</div>
+                          <div className="text-lg text-[#00E676] font-mono font-semibold">{healthData?.operational?.currentFps || 0}</div>
+                        </div>
+                        <div className="bg-black/50 p-3 rounded-xl border border-[#FF6B35]/20">
+                          <div className="text-[11px] text-[#8BAFC4] mb-1">Dropped</div>
+                          <div className="text-lg text-[#FF6B35] font-mono font-semibold">{healthData?.operational?.droppedFrames || 0}</div>
+                        </div>
+                        <div className="bg-black/50 p-3 rounded-xl border border-white/5">
+                          <div className="text-[11px] text-[#8BAFC4] mb-1">Backlog</div>
+                          <div className="text-lg text-[#E8F4F8] font-mono font-semibold">{healthData?.operational?.queueBacklog || 0}</div>
+                        </div>
+                        <div className="bg-black/50 p-3 rounded-xl border border-white/5">
+                          <div className="text-[11px] text-[#8BAFC4] mb-1">Failures</div>
+                          <div className="text-lg text-[#E8F4F8] font-mono font-semibold">{healthData?.operational?.consecutiveFailures || 0}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                        <span className="text-[11px] text-[#8BAFC4]">Last Heartbeat</span>
+                        <span className="text-xs font-mono text-[#A5F3FC] bg-[#00E5FF]/10 px-2 py-1 rounded">
+                          {healthData?.operational?.agentHeartbeatAt ? new Date(healthData.operational.agentHeartbeatAt).toLocaleTimeString() : 'N/A'}
+                        </span>
+                      </div>
+
+                      {connectionMessage && (
+                        <div className="text-[12px] text-[#00E5FF] bg-[#00E5FF]/10 p-3 rounded-lg border border-[#00E5FF]/20 text-center mt-2">
+                          {connectionMessage}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </GlassCard>
+        </div>
       </div>
 
-      <GlassCard style={{ padding: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '15px', fontWeight: 600, color: '#E8F4F8' }}>
-              LIVE FEED: {selected?.name ?? 'Pilih kamera'}
-            </h2>
-            <div style={{ color: '#4A6B84', fontSize: '12px', marginTop: '4px' }}>{selected?.location ?? 'Tidak ada kamera terpilih'}</div>
-          </div>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            {selected ? <StatusDot status={selected.status} showLabel /> : null}
-            {selected ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => handleEditClick(selected)}
-                  style={{ background: 'rgba(255,214,0,0.12)', border: '1px solid rgba(255,214,0,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#FFD600', fontSize: '12px' }}
-                >
-                  <FontAwesomeIcon icon={faPen} style={{ marginRight: '6px' }} /> Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteClick(selected)}
-                  style={{ background: 'rgba(255,51,51,0.12)', border: '1px solid rgba(255,51,51,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#FF3333', fontSize: '12px' }}
-                >
-                  <FontAwesomeIcon icon={faTrash} style={{ marginRight: '6px' }} /> Hapus
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                  setTestingConnection(true);
-                  setConnectionMessage('');
-                  try {
-                    const response = await cameraApi.testConnection(selected.id);
-                    setConnectionMessage(response.data.data.message || 'Koneksi RTSP berhasil.');
-                  } catch (err) {
-                    setConnectionMessage('Gagal terhubung ke kamera. Pastikan URL dan kredensial benar.');
-                  } finally {
-                    setTestingConnection(false);
-                  }
-                }}
-                style={{ background: 'rgba(0,229,255,0.12)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: '#E8F4F8', fontSize: '12px' }}
-                disabled={testingConnection}
-              >
-                {testingConnection ? 'Memeriksa...' : 'Test Connection'}
-              </button>
-              </>
-            ) : null}
-            <button
-              aria-label="Fullscreen"
-              style={{ background: 'none', border: '1px solid rgba(0,229,255,0.2)', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#8BAFC4' }}
-            >
-              <FontAwesomeIcon icon={faExpand} style={{ fontSize: '16px' }} />
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px' }} className="feed-grid">
-          <div
-            style={{
-              aspectRatio: '16/9',
-              background: 'linear-gradient(135deg, #060D14, #0D1B2A)',
-              borderRadius: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              overflow: 'hidden',
-              border: '1px solid rgba(0,229,255,0.1)',
-            }}
-          >
-            {systemHealth?.available === false ? (
-              <>
-                <div style={{ fontSize: '64px', opacity: 0.15, color: '#FF3D3D' }}><FontAwesomeIcon icon={faVideo} /></div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ color: '#FF3D3D', fontSize: '14px', fontFamily: 'Inter, sans-serif', textAlign: 'center', fontWeight: 'bold' }}>
-                    <div>Preview Unavailable</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px', color: '#A5F3FC', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {systemHealth.reason}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : selected?.status === 'online' ? (
-              <LiveCamera cameraId={selected.id} />
-            ) : previewUrl ? (
-              <img src={previewUrl} alt="Live feed preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <>
-                <div style={{ fontSize: '64px', opacity: 0.15, color: '#E8F4F8' }}><FontAwesomeIcon icon={faVideo} /></div>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ color: '#4A6B84', fontSize: '14px', fontFamily: 'Inter, sans-serif', textAlign: 'center' }}>
-                    <div>{loadingPreview ? 'Memuat live feed...' : 'Live feed stream'}</div>
-                    <div style={{ fontSize: '12px', marginTop: '4px', color: '#00CFE8', fontFamily: 'JetBrains Mono, monospace' }}>
-                      {selected ? `ws://camera/${selected.id}/stream` : 'ws://camera/{id}/stream'}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            {selected?.status === 'online' && (
-              <>
-                <div style={{ position: 'absolute', top: 12, left: 12, width: 20, height: 20, borderTop: '2px solid #00E5FF', borderLeft: '2px solid #00E5FF' }} />
-                <div style={{ position: 'absolute', top: 12, right: 12, width: 20, height: 20, borderTop: '2px solid #00E5FF', borderRight: '2px solid #00E5FF' }} />
-                <div style={{ position: 'absolute', bottom: 12, left: 12, width: 20, height: 20, borderBottom: '2px solid #00E5FF', borderLeft: '2px solid #00E5FF' }} />
-                <div style={{ position: 'absolute', bottom: 12, right: 12, width: 20, height: 20, borderBottom: '2px solid #00E5FF', borderRight: '2px solid #00E5FF' }} />
-              </>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontSize: '12px', color: '#4A6B84', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'Inter, sans-serif' }}>
-              Informasi Kamera
-            </div>
-            {selected ? (
-              <div style={{ padding: '16px', background: 'rgba(17, 34, 54, 0.85)', border: '1px solid rgba(0,229,255,0.08)', borderRadius: '12px' }}>
-                <div style={{ fontSize: '13px', color: '#8BAFC4', marginBottom: '10px' }}>Stream URL</div>
-                <div style={{ fontSize: '14px', color: '#E8F4F8', wordBreak: 'break-all', marginBottom: '16px' }}>{selected.streamUrl || 'Tidak tersedia'}</div>
-
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
-                <div style={{ fontSize: '12px', color: '#00E5FF', fontWeight: 600, marginBottom: '12px' }}>Status Operasional</div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>FPS Saat Ini</div>
-                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.currentFps || 0} fps</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Dropped Frames</div>
-                    <div style={{ fontSize: '14px', color: '#FF6B35', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.droppedFrames || 0}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Queue Backlog</div>
-                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.queueBacklog || 0}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#8BAFC4' }}>Failures (Consecutive)</div>
-                    <div style={{ fontSize: '14px', color: '#E8F4F8', fontFamily: 'JetBrains Mono, monospace' }}>{healthData?.operational?.consecutiveFailures || 0}</div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '16px', fontSize: '11px', color: '#4A6B84' }}>
-                  Last Heartbeat: {healthData?.operational?.agentHeartbeatAt ? new Date(healthData.operational.agentHeartbeatAt).toLocaleTimeString() : 'N/A'}
-                </div>
-                {healthData?.operational?.lastErrorCode && (
-                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#FF3D3D' }}>
-                    Error: {healthData.operational.lastErrorCode}
-                  </div>
-                )}
-                {connectionMessage && (
-                  <div style={{ marginTop: '12px', fontSize: '12px', color: '#A5F3FC' }}>{connectionMessage}</div>
-                )}
-              </div>
-            ) : (
-              <div style={{ padding: '24px', textAlign: 'center', color: '#4A6B84', fontSize: '13px', fontFamily: 'Inter, sans-serif' }}>
-                Pilih kamera untuk melihat detail.
-              </div>
-            )}
-          </div>
-        </div>
-      </GlassCard>
-
+      {/* Modals */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(6, 13, 20, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '24px' }}
+            className="fixed inset-0 bg-[#060D14]/85 backdrop-blur-sm flex items-center justify-center z-[1000] p-6"
             onClick={() => setIsModalOpen(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              style={{ background: '#112236', border: '1px solid rgba(0, 229, 255, 0.2)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto' }}
+              className="bg-[#112236] border border-[#00E5FF]/30 rounded-3xl p-8 w-full max-w-xl shadow-2xl relative overflow-hidden"
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-32 bg-[#00E5FF]/10 blur-[60px] pointer-events-none" />
+
+              <div className="flex items-start justify-between mb-8 relative z-10 border-b border-white/10 pb-6">
                 <div>
-                  <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '18px', fontWeight: 700, color: '#E8F4F8' }}>{editCameraId ? 'Edit Edge Device' : 'Register Edge Device (Raspi)'}</h2>
-                  <p style={{ color: '#8BAFC4', fontSize: '13px', marginTop: '4px' }}>Daftarkan titik Edge Device baru untuk pengiriman data.</p>
+                  <h2 className="font-orbitron text-2xl font-bold text-[#E8F4F8]">{editCameraId ? 'Edit Device' : 'Register Device'}</h2>
+                  <p className="text-[#8BAFC4] text-sm mt-2">Konfigurasi edge endpoint untuk object detection</p>
                 </div>
-                <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} aria-label="Tutup" style={{ background: 'none', border: 'none', color: '#8BAFC4', cursor: 'pointer' }}>
-                  <FontAwesomeIcon icon={faXmark} style={{ fontSize: '20px' }} />
+                <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-[#8BAFC4] hover:text-white hover:bg-white/10 rounded-full w-10 h-10 flex items-center justify-center transition-colors">
+                  <FontAwesomeIcon icon={faXmark} className="text-xl" />
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                <Input label="Nama Titik (Kamera)" value={name} onChange={(e) => setName(e.target.value)} placeholder="Pintu Masuk Utama" />
-                <Input label="Lokasi" value={locationName} onChange={(e) => setLocationName(e.target.value)} placeholder="Lobby A" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
+                <Input label="Nama Kamera" value={name} onChange={(e) => setName(e.target.value)} placeholder="Mis: Pintu Utama" />
+                <Input label="Lokasi" value={locationName} onChange={(e) => setLocationName(e.target.value)} placeholder="Mis: Lobby Depan" />
                 <Input label="Latitude (Opsional)" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="-6.200000" />
                 <Input label="Longitude (Opsional)" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="106.816666" />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <Button variant="ghost" size="md" onClick={() => { setIsModalOpen(false); resetForm(); }}>Batal</Button>
-                <Button variant="fox" size="md" loading={saving} onClick={handleSaveCamera}>{saving ? 'Menyimpan...' : (editCameraId ? 'Simpan Perubahan' : 'Simpan Monitor')}</Button>
+              <div className="flex justify-end gap-3 relative z-10">
+                <Button variant="ghost" size="md" onClick={() => { setIsModalOpen(false); resetForm(); }} className="hover:bg-white/5">Batal</Button>
+                <Button variant="fox" size="md" loading={saving} onClick={handleSaveCamera} className="shadow-[0_0_15px_rgba(255,107,53,0.3)]">
+                  {saving ? 'Menyimpan...' : (editCameraId ? 'Simpan Perubahan' : 'Register Endpoint')}
+                </Button>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence>
         {generatedApiKey && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(6, 13, 20, 0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '24px' }}
+            className="fixed inset-0 bg-[#060D14]/90 backdrop-blur-md flex items-center justify-center z-[1100] p-6"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              style={{ background: '#112236', border: '1px solid #00E676', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '500px' }}
+              className="bg-[#112236] border border-[#00E676] rounded-3xl p-10 w-full max-w-lg shadow-[0_0_40px_rgba(0,230,118,0.15)] text-center relative overflow-hidden"
             >
-              <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '20px', fontWeight: 700, color: '#00E676', marginBottom: '8px' }}>Pendaftaran Berhasil!</h2>
-              <p style={{ color: '#E8F4F8', fontSize: '14px', marginBottom: '24px' }}>
-                Edge Device berhasil terdaftar. Segera salin kredensial di bawah ini dan masukkan ke file <code style={{ color: '#00E5FF' }}>.env</code> pada Raspberry Pi Anda.
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] h-32 bg-[#00E676]/10 blur-[60px] pointer-events-none" />
+
+              <div className="w-20 h-20 rounded-full bg-[#00E676]/20 flex items-center justify-center mx-auto mb-6 border border-[#00E676]/50 text-[#00E676] text-3xl relative z-10 shadow-[0_0_20px_rgba(0,230,118,0.3)]">
+                ✓
+              </div>
+              <h2 className="font-orbitron text-2xl font-bold text-[#00E676] mb-3 relative z-10">Endpoint Terdaftar!</h2>
+              <p className="text-[#E8F4F8] text-sm mb-8 relative z-10 leading-relaxed">
+                Salin kredensial di bawah ini dan masukkan ke file <code className="text-[#00E5FF] bg-[#00E5FF]/10 px-2 py-1 rounded">.env</code> pada Raspberry Pi Anda.
                 <br /><br />
-                <strong style={{ color: '#FF6B35' }}>Penting:</strong> API Key ini hanya ditampilkan satu kali ini saja demi keamanan!
+                <span className="text-[#FF6B35] font-semibold bg-[#FF6B35]/10 px-2 py-1 rounded">Penting:</span> API Key ini hanya ditampilkan satu kali demi keamanan!
               </p>
 
-              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '12px', marginBottom: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '11px', color: '#8BAFC4', marginBottom: '4px' }}>CAMERA_ID</div>
-                  <div style={{ fontSize: '14px', color: '#00E5FF', fontFamily: 'JetBrains Mono, monospace', userSelect: 'all', background: 'rgba(0,229,255,0.05)', padding: '8px', borderRadius: '6px' }}>
+              <div className="bg-black/50 p-5 rounded-2xl mb-8 border border-white/10 text-left relative z-10 shadow-inner">
+                <div className="mb-5">
+                  <div className="text-[11px] text-[#8BAFC4] mb-1.5 font-bold tracking-widest uppercase">CAMERA_ID</div>
+                  <div className="text-base text-[#00E5FF] font-mono bg-[#00E5FF]/5 p-3 rounded-lg border border-[#00E5FF]/20 select-all cursor-text">
                     {generatedApiKey.id}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: '#8BAFC4', marginBottom: '4px' }}>API_KEY</div>
-                  <div style={{ fontSize: '14px', color: '#00E5FF', fontFamily: 'JetBrains Mono, monospace', userSelect: 'all', background: 'rgba(0,229,255,0.05)', padding: '8px', borderRadius: '6px' }}>
+                  <div className="text-[11px] text-[#8BAFC4] mb-1.5 font-bold tracking-widest uppercase">API_KEY</div>
+                  <div className="text-base text-[#00E5FF] font-mono bg-[#00E5FF]/5 p-3 rounded-lg border border-[#00E5FF]/20 select-all cursor-text break-all">
                     {generatedApiKey.key}
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Button variant="fox" size="md" onClick={() => setGeneratedApiKey(null)}>Saya Sudah Menyalinnya</Button>
+              <div className="flex justify-center relative z-10">
+                <Button variant="fox" size="lg" onClick={() => setGeneratedApiKey(null)} className="w-full text-lg shadow-[0_0_20px_rgba(255,107,53,0.4)]">
+                  Saya Sudah Menyalinnya
+                </Button>
               </div>
             </motion.div>
           </motion.div>
@@ -537,13 +544,10 @@ export default function MonitorPage() {
       </AnimatePresence>
 
       <style>{`
-        @media (max-width: 1024px) {
-          .camera-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .feed-grid { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 640px) {
-          .camera-grid { grid-template-columns: 1fr !important; }
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 229, 255, 0.5); }
       `}</style>
     </div>
   );
