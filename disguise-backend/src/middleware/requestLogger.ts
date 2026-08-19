@@ -1,6 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 
+// Endpoints that run at high frequency (polling/heartbeats/tracking)
+const SILENT_PATHS = [
+  '/health',
+  '/api/v1/health',
+  '/api/v1/camera-agent/heartbeat',
+  '/api/v1/camera-agent/tracking',
+  '/api/v1/camera-agent/config',
+];
+
 export const requestLogger = (
   req: Request,
   res: Response,
@@ -10,7 +19,14 @@ export const requestLogger = (
 
   res.on('finish', () => {
     const duration = Date.now() - start;
-    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    const isError = res.statusCode >= 400;
+    const level = res.statusCode >= 500 ? 'error' : isError ? 'warn' : 'info';
+
+    // Ignore high-frequency polling from cluttering production logs unless it errored
+    const isSilent = SILENT_PATHS.some((p) => req.path.startsWith(p));
+    if (isSilent && !isError) {
+      return;
+    }
 
     logger[level]('HTTP Request', {
       method: req.method,

@@ -11,6 +11,7 @@ import { generateApiKey } from '../../utils/helpers';
 import { getPaginationParams, paginate } from '../../utils/response';
 import { CameraCredentialEncryption } from '../../utils/cameraCredentialEncryption';
 import { CreateCameraInput, UpdateCameraInput, ListCamerasQuery } from './cameras.schema';
+import { logger } from '../../config/logger';
 
 const execFileAsync = promisify(execFile);
 
@@ -159,19 +160,19 @@ export class CamerasService {
           });
           if (!postRes.ok) {
             const body = await postRes.text();
-            console.error(`[MediaMTX] Failed to add path ${cameraId}:`, body);
+            logger.error(`[MediaMTX] Failed to add path ${cameraId}:`, { body });
           } else {
-            console.log(`[MediaMTX] ✅ Path added: ${cameraId}`);
+            logger.debug(`[MediaMTX] ✅ Path added: ${cameraId}`);
           }
         } else {
-          console.log(`[MediaMTX] ✅ Path updated: ${cameraId}`);
+          logger.debug(`[MediaMTX] ✅ Path updated: ${cameraId}`);
         }
       } else {
         const body = await patchRes.text();
-        console.error(`[MediaMTX] Failed to patch path ${cameraId}:`, body);
+        logger.error(`[MediaMTX] Failed to patch path ${cameraId}:`, { body });
       }
     } catch (err: any) {
-      console.error(`[MediaMTX] API unreachable for path ${cameraId}:`, err.message);
+      logger.error(`[MediaMTX] API unreachable for path ${cameraId}:`, { error: err.message });
     }
   }
 
@@ -182,9 +183,9 @@ export class CamerasService {
     const apiUrl = process.env.MEDIAMTX_API_URL || 'http://127.0.0.1:9997';
     try {
       await fetch(`${apiUrl}/v3/config/paths/delete/${cameraId}`, { method: 'DELETE' });
-      console.log(`[MediaMTX] ✅ Path removed: ${cameraId}`);
+      logger.debug(`[MediaMTX] ✅ Path removed: ${cameraId}`);
     } catch (err: any) {
-      console.error(`[MediaMTX] Failed to remove path ${cameraId}:`, err.message);
+      logger.error(`[MediaMTX] Failed to remove path ${cameraId}:`, { error: err.message });
     }
   }
 
@@ -240,7 +241,7 @@ paths:
       // Sync all paths to running MediaMTX instance
       await Promise.allSettled(apiPromises);
     } catch (err) {
-      console.error('[MediaMTX] Failed to sync config:', err);
+      logger.error('[MediaMTX] Failed to sync config:', { error: err });
     }
   }
 
