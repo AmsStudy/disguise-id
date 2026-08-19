@@ -162,29 +162,26 @@ def main():
                                 ffmpeg_process.terminate()
                                 ffmpeg_process = None
 
-                    if is_enabled and not capture:
-                        # Force capture to run at 5 FPS for smooth tracking overlay
-                        capture = RTSPCapture(rtsp_url=rtsp_url, fps=5)
-                        capture.connect()
-                        logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
+                    if is_enabled:
+                        if not capture:
+                            # Force capture to run at 5 FPS for smooth tracking overlay
+                            capture = RTSPCapture(rtsp_url=rtsp_url, fps=5)
+                            capture.connect()
+                            logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
                         
-                        camera_id = backend_config.get("cameraId")
-                        if config.stream_push_enabled and camera_id and not ffmpeg_process:
-                            ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, camera_id)
-
-                    # Monitor FFmpeg process health
-                    if ffmpeg_process and ffmpeg_process.poll() is not None:
-                        err_msg = ""
-                        try:
-                            if ffmpeg_process.stderr:
-                                err_msg = ffmpeg_process.stderr.read().decode('utf-8', errors='ignore').strip()
-                        except Exception:
-                            pass
-                        logger.warning(f"FFmpeg push process exited (code {ffmpeg_process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Restarting in next cycle...")
-                        ffmpeg_process = None
-                        camera_id = backend_config.get("cameraId")
-                        if config.stream_push_enabled and camera_id and rtsp_url:
-                            ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, camera_id)
+                        target_cam_id = (backend_config.get("cameraId") if backend_config else None) or config.camera_id
+                        if config.stream_push_enabled and target_cam_id:
+                            if ffmpeg_process is None:
+                                ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, target_cam_id)
+                            elif ffmpeg_process.poll() is not None:
+                                err_msg = ""
+                                try:
+                                    if ffmpeg_process.stderr:
+                                        err_msg = ffmpeg_process.stderr.read().decode('utf-8', errors='ignore').strip()
+                                except Exception:
+                                    pass
+                                logger.warning(f"FFmpeg push process exited (code {ffmpeg_process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Restarting...")
+                                ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, target_cam_id)
 
             if not is_enabled or not capture:
                 time.sleep(5)
