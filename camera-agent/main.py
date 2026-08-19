@@ -34,7 +34,7 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         push_url
     ]
     logger.info(f"Starting FFmpeg Push to Central Server: {' '.join(cmd)}")
-    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -162,7 +162,13 @@ def main():
 
                     # Monitor FFmpeg process health
                     if ffmpeg_process and ffmpeg_process.poll() is not None:
-                        logger.warning("FFmpeg push process exited. Restarting...")
+                        err_msg = ""
+                        try:
+                            if ffmpeg_process.stderr:
+                                err_msg = ffmpeg_process.stderr.read().decode('utf-8', errors='ignore').strip()
+                        except Exception:
+                            pass
+                        logger.warning(f"FFmpeg push process exited (code {ffmpeg_process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Restarting in next cycle...")
                         ffmpeg_process = None
                         camera_id = backend_config.get("cameraId")
                         if config.stream_push_enabled and camera_id and rtsp_url:

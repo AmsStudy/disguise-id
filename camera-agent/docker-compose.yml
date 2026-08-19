@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     container_name: disguise-camera-agent-edge
     restart: unless-stopped
     env_file:
