@@ -8,6 +8,7 @@ class AgentConfig(BaseModel):
     backend_url: str = os.getenv("BACKEND_URL", "http://localhost:3000")
     api_key: str = os.getenv("API_KEY", "")
     rtsp_url: str = os.getenv("RTSP_URL", "")
+    stream_push_rtsp_url: str = os.getenv("STREAM_PUSH_RTSP_URL", "")
     
     # Detector settings
     det_size: int = int(os.getenv("DET_SIZE", "640"))

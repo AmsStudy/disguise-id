@@ -15,6 +15,14 @@ import subprocess
 from urllib.parse import urlparse
 
 def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
+    # Gunakan STREAM_PUSH_RTSP_URL dari .env jika ada, atau otomatis gunakan stream2
+    push_source_url = config.stream_push_rtsp_url
+    if not push_source_url:
+        if "/stream1" in local_rtsp_url:
+            push_source_url = local_rtsp_url.replace("/stream1", "/stream2")
+        else:
+            push_source_url = local_rtsp_url
+
     # If MEDIAMTX_HOST is explicitly set, use it. Otherwise extract from central_url
     if config.mediamtx_host:
         central_ip = config.mediamtx_host
@@ -27,9 +35,12 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
     
     cmd = [
         "ffmpeg",
+        "-use_wallclock_as_timestamps", "1",
+        "-fflags", "+genpts",
         "-rtsp_transport", "tcp",
-        "-i", local_rtsp_url,
-        "-c", "copy",
+        "-i", push_source_url,
+        "-c:v", "copy",
+        "-an",
         "-rtsp_transport", "tcp",
         "-f", "rtsp",
         push_url
