@@ -78,16 +78,34 @@ export const getIO = (): SocketIOServer => {
   return io;
 };
 
-// ─── Server → Client Event Emitters ─────────────────────────
+import { fcmService } from '../services/fcm.service';
 
 /**
- * Emit new alert to all clients in the organization room
+ * Emit new alert to all clients in the organization room and push to mobile devices
  */
 export const emitAlertNew = (orgId: string, payload: Record<string, unknown>): void => {
   try {
     const _io = getIO();
     _io.to(`org:${orgId}`).emit('alert:new', payload);
     logger.debug('Emitted alert:new', { orgId });
+
+    // Dispatch background push notification to registered Android/iOS field devices
+    const alertData = (payload.alert || payload) as any;
+    if (alertData && (alertData.id || alertData.alert_id)) {
+      const person = alertData.person || {};
+      const source = alertData.detectionEvent?.source || alertData.camera || {};
+      fcmService.sendAlertNotification(orgId, {
+        alertId: alertData.id || alertData.alert_id,
+        personName: person.fullName || person.name || 'DPO Target',
+        cameraName: source.name || 'CCTV Field Camera',
+        similarity: alertData.similarityScore || alertData.similarity || 0.85,
+        dangerLevel: person.dangerLevel || 'high',
+        faceCropUrl: alertData.detectionEvent?.faceCropUrl,
+        photoUrl: person.photoUrl,
+      }).catch((err) => {
+        logger.debug('FCM push notification non-blocking error', { error: err });
+      });
+    }
   } catch (err) {
     logger.warn('Failed to emit alert:new (socket not ready)', { orgId });
   }
