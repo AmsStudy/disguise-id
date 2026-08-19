@@ -83,6 +83,7 @@ app.use(`${API_PREFIX}/alerts`, alertsRouter);
 app.use(`${API_PREFIX}/cases`, casesRouter);
 app.use(`${API_PREFIX}/analytics`, analyticsRouter);
 app.use(`${API_PREFIX}/audit-logs`, auditRouter);
+app.use(`${API_PREFIX}/audit`, auditRouter);
 app.use(`${API_PREFIX}/settings`, settingsRouter);
 app.use(`${API_PREFIX}/iot`, iotRouter);
 app.use(`${API_PREFIX}/ml-v2`, mlV2ReviewRouter);

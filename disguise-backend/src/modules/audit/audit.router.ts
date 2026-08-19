@@ -11,6 +11,7 @@ export const auditRouter = Router();
 const querySchema = z.object({
   page: z.string().optional(),
   limit: z.string().optional(),
+  search: z.string().optional(),
   user_id: z.string().uuid().optional(),
   action: z.string().optional(),
   resource_type: z.string().optional(),
@@ -19,18 +20,26 @@ const querySchema = z.object({
 });
 
 auditRouter.use(authenticate);
-auditRouter.use(authorize('admin', 'super_admin'));
+auditRouter.use(authorize('admin', 'super_admin', 'operator', 'investigator'));
 
 auditRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const query = querySchema.parse(req.query);
     const { page, limit, skip } = getPaginationParams(query.page, query.limit);
 
-    const where = {
+    const where: any = {
       organizationId: req.user!.orgId,
       ...(query.user_id && { userId: query.user_id }),
       ...(query.action && { action: { contains: query.action, mode: 'insensitive' as const } }),
       ...(query.resource_type && { resourceType: query.resource_type }),
+      ...(query.search && {
+        OR: [
+          { action: { contains: query.search, mode: 'insensitive' as const } },
+          { resourceType: { contains: query.search, mode: 'insensitive' as const } },
+          { resourceId: { contains: query.search, mode: 'insensitive' as const } },
+          { user: { fullName: { contains: query.search, mode: 'insensitive' as const } } },
+        ],
+      }),
       ...(query.date_from || query.date_to
         ? {
             createdAt: {

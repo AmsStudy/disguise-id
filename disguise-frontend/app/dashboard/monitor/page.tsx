@@ -44,10 +44,14 @@ export default function MonitorPage() {
     [cameras, selectedCameraId]
   );
 
-  const fetchPreview = async (cameraId: string) => {
+  const fetchPreview = async (cam: Camera | null) => {
+    if (!cam || cam.status === 'online' || !cam.streamUrl) {
+      setPreviewUrl(null);
+      return;
+    }
     setLoadingPreview(true);
     try {
-      const response = await cameraApi.preview(cameraId);
+      const response = await cameraApi.preview(cam.id);
       const imageBlob = response.data as Blob;
       const url = URL.createObjectURL(imageBlob);
       setPreviewUrl((prev) => {
@@ -67,7 +71,7 @@ export default function MonitorPage() {
       return;
     }
 
-    fetchPreview(selected.id);
+    fetchPreview(selected);
     const fetchHealth = async () => {
       try {
         const [resCamera, resSystem] = await Promise.all([
@@ -87,7 +91,9 @@ export default function MonitorPage() {
     fetchHealth();
 
     const interval = setInterval(() => {
-      fetchPreview(selected.id);
+      if (selected.status !== 'online' && selected.streamUrl) {
+        fetchPreview(selected);
+      }
       fetchHealth();
     }, 10000);
     return () => {

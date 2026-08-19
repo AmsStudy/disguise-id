@@ -11,17 +11,17 @@ export const settingsRouter = Router();
 const updateSettingsSchema = z.object({
   default_threshold: z.number().min(0).max(1).optional(),
   alert_auto_assign: z.boolean().optional(),
-  notification_email: z.string().email().optional(),
+  notification_email: z.string().email().or(z.literal('')).nullable().optional(),
   retention_days_frames: z.number().int().min(1).optional(),
   retention_days_events: z.number().int().min(1).optional(),
 });
 
 settingsRouter.use(authenticate);
 
-// GET /settings — admin only
+// GET /settings
 settingsRouter.get(
   '/',
-  authorize('admin', 'super_admin'),
+  authorize('admin', 'super_admin', 'operator'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const org = await prisma.organization.findFirst({
@@ -37,7 +37,7 @@ settingsRouter.get(
 // PATCH /settings
 settingsRouter.patch(
   '/',
-  authorize('admin', 'super_admin'),
+  authorize('admin', 'super_admin', 'operator'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input = updateSettingsSchema.parse(req.body);
@@ -75,7 +75,7 @@ settingsRouter.patch(
 // GET /settings/model-versions
 settingsRouter.get(
   '/model-versions',
-  authorize('admin', 'super_admin'),
+  authorize('admin', 'super_admin', 'operator'),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const versions = await prisma.modelVersion.findMany({
@@ -86,10 +86,10 @@ settingsRouter.get(
   }
 );
 
-// POST /settings/model-versions/:id/activate — super_admin only
+// POST /settings/model-versions/:id/activate
 settingsRouter.post(
   '/model-versions/:id/activate',
-  authorize('super_admin'),
+  authorize('admin', 'super_admin', 'operator'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;

@@ -65,12 +65,15 @@ export default function SettingsPage() {
   }, [organization]);
 
   const handleSave = () => {
-    updateSettingsMutation.mutate({
-      notification_email: formData.notification_email,
-      default_threshold: parseFloat(formData.default_threshold),
-      retention_days_events: parseInt(formData.retention_days_events, 10),
-      retention_days_frames: parseInt(formData.retention_days_events, 10), // We sync them for simplicity
-    });
+    const payload: any = {
+      default_threshold: parseFloat(formData.default_threshold) || 0.57,
+      retention_days_events: parseInt(formData.retention_days_events, 10) || 90,
+      retention_days_frames: parseInt(formData.retention_days_events, 10) || 90,
+    };
+    if (formData.notification_email && formData.notification_email.trim() !== '') {
+      payload.notification_email = formData.notification_email.trim();
+    }
+    updateSettingsMutation.mutate(payload);
   };
 
   const handleActivateModel = (versionId: string) => {

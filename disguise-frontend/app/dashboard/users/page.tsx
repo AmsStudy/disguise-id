@@ -12,28 +12,43 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '@/services/usersApi';
 import { toast } from 'sonner';
 
+const PASSWORD_HINT = 'Min. 8 karakter (kombinasi huruf besar, kecil, angka, dan simbol @$!%*?&)';
+
 const UserModal: React.FC<{ user?: any, onClose: () => void, onSuccess: () => void }> = ({ user, onClose, onSuccess }) => {
   const [name, setName] = useState(user?.fullName || '');
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState(user?.role || 'operator');
+  const [errorMsg, setErrorMsg] = useState('');
   
   const isEditing = !!user;
 
   const saveMutation = useMutation({
-    mutationFn: (data: any) => isEditing ? usersApi.update(user.id, data) : usersApi.create(data),
+    mutationFn: async (data: any) => {
+      if (isEditing) {
+        await usersApi.update(user.id, { full_name: data.full_name, role: data.role });
+        if (password.trim()) {
+          await usersApi.resetPassword(user.id, password);
+        }
+      } else {
+        await usersApi.create(data);
+      }
+    },
     onSuccess: () => {
-      toast.success(isEditing ? 'Pengguna diperbarui' : 'Pengguna baru berhasil dibuat');
+      toast.success(isEditing ? 'Pengguna berhasil diperbarui' : 'Pengguna baru berhasil dibuat');
       onSuccess();
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Terjadi kesalahan saat menyimpan pengguna');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || 'Terjadi kesalahan saat menyimpan pengguna';
+      setErrorMsg(msg);
+      toast.error(msg);
     }
   });
 
   const handleSave = () => {
+    setErrorMsg('');
     const payload: any = { full_name: name, email, role };
-    if (password) payload.password = password; // only send password if provided
+    if (password) payload.password = password;
     saveMutation.mutate(payload);
   };
 
@@ -50,30 +65,44 @@ const UserModal: React.FC<{ user?: any, onClose: () => void, onSuccess: () => vo
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        style={{ background: '#112236', border: '1px solid rgba(0, 229, 255, 0.2)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '460px' }}
+        style={{ background: '#112236', border: '1px solid rgba(0, 229, 255, 0.2)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '480px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
           <h2 style={{ fontFamily: 'Orbitron, monospace', fontSize: '18px', fontWeight: 700, color: '#E8F4F8' }}>
-            {isEditing ? 'Edit Pengguna' : 'Tambah Pengguna'}
+            {isEditing ? 'Edit Akses Pengguna' : 'Tambah Pengguna Baru'}
           </h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#8BAFC4', cursor: 'pointer' }}>
             <FontAwesomeIcon icon={faXmark} style={{ fontSize: '20px' }} />
           </button>
         </div>
 
+        {errorMsg && (
+          <div style={{ background: 'rgba(255, 61, 61, 0.15)', border: '1px solid rgba(255, 61, 61, 0.3)', color: '#FF6B6B', padding: '10px 14px', borderRadius: '10px', fontSize: '12px', marginBottom: '16px' }}>
+            {errorMsg}
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-          <Input label="Nama Lengkap" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="Email Address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input 
-            label={isEditing ? 'Kata Sandi Baru (Kosongkan jika tidak diubah)' : 'Kata Sandi'} 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            required={!isEditing} 
-          />
+          <Input label="Nama Lengkap" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Budi Santoso" required />
+          <Input label="Email Address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nama@disguise.id" disabled={isEditing} required />
+          <div>
+            <Input 
+              label={isEditing ? 'Kata Sandi Baru (Opsional)' : 'Kata Sandi'} 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              placeholder="••••••••"
+              required={!isEditing} 
+            />
+            <span style={{ fontSize: '11px', color: '#8BAFC4', marginTop: '4px', display: 'block' }}>
+              {PASSWORD_HINT}
+            </span>
+          </div>
           <Select label="Role Akses" value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="admin">Administrator (Penuh)</option>
-            <option value="operator">Operator (Pengawasan & Investigasi)</option>
+            <option value="operator">Operator (Monitoring CCTV & Validasi Alert)</option>
+            <option value="investigator">Investigator (Manajemen Kasus & Forensik)</option>
+            <option value="admin">Administrator (Manajemen Pengguna & Kamera)</option>
+            <option value="super_admin">Super Admin (Akses Penuh Sistem)</option>
           </Select>
         </div>
 
@@ -84,9 +113,9 @@ const UserModal: React.FC<{ user?: any, onClose: () => void, onSuccess: () => vo
             fullWidth 
             loading={saveMutation.isPending} 
             onClick={handleSave}
-            disabled={!name || !email || (!isEditing && !password)}
+            disabled={!name || (!isEditing && (!email || !password))}
           >
-            {saveMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+            {saveMutation.isPending ? 'Menyimpan...' : 'Simpan User'}
           </Button>
         </div>
       </motion.div>
@@ -165,8 +194,8 @@ export default function UsersPage() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <Badge variant={u.role === 'admin' ? 'high' : 'info'}>
-                      {u.role.toUpperCase()}
+                    <Badge variant={u.role === 'super_admin' ? 'critical' : u.role === 'admin' ? 'high' : u.role === 'investigator' ? 'medium' : 'info'}>
+                      {u.role.replace('_', ' ').toUpperCase()}
                     </Badge>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <Button variant="secondary" size="sm" onClick={() => setModalUser({ show: true, user: u })}>
