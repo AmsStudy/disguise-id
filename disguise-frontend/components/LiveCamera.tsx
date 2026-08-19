@@ -148,7 +148,11 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
 
     const startWebRTC = async () => {
       try {
-        peerConnection = new RTCPeerConnection();
+        peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }
+          ]
+        });
 
         peerConnection.addTransceiver("video", { direction: "recvonly" });
         peerConnection.addTransceiver("audio", { direction: "recvonly" });
