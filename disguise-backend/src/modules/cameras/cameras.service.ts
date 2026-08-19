@@ -133,15 +133,38 @@ export class CamerasService {
   }
 
 
+  private isPrivateStreamUrl(url?: string | null): boolean {
+    if (!url) return true;
+    try {
+      const raw = url.startsWith('rtsp://') ? url.replace('rtsp://', 'http://') : url;
+      const parsed = new URL(raw);
+      const hostname = parsed.hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+      ) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Sync a single camera path to MediaMTX via REST API (instant, no restart needed)
    */
-  private async syncMediaMtxPath(cameraId: string, rtspUrl: string): Promise<void> {
+  private async syncMediaMtxPath(cameraId: string, rtspUrl?: string): Promise<void> {
     const apiUrl = process.env.MEDIAMTX_API_URL || 'http://127.0.0.1:9997';
-    const pathConfig = {
-      source: rtspUrl,
-      sourceProtocol: 'tcp',
-    };
+    const isEdge = this.isPrivateStreamUrl(rtspUrl);
+    
+    // For Edge Cameras (private LAN RTSP), set source: 'publisher' so MediaMTX accepts RTSP push from Raspberry Pi
+    const pathConfig = isEdge
+      ? { source: 'publisher' }
+      : { source: rtspUrl, sourceProtocol: 'tcp' };
 
     // Try PATCH first (update if exists), then POST (create if new)
     try {
@@ -162,10 +185,10 @@ export class CamerasService {
             const body = await postRes.text();
             logger.error(`[MediaMTX] Failed to add path ${cameraId}:`, { body });
           } else {
-            logger.debug(`[MediaMTX] ✅ Path added: ${cameraId}`);
+            logger.debug(`[MediaMTX] ✅ Path added (${isEdge ? 'publisher' : 'pull'}): ${cameraId}`);
           }
         } else {
-          logger.debug(`[MediaMTX] ✅ Path updated: ${cameraId}`);
+          logger.debug(`[MediaMTX] ✅ Path updated (${isEdge ? 'publisher' : 'pull'}): ${cameraId}`);
         }
       } else {
         const body = await patchRes.text();
@@ -224,11 +247,13 @@ paths:
       const apiPromises: Promise<void>[] = [];
 
       for (const cam of cameras) {
-        if (cam.streamUrl) {
+        if (cam.streamUrl && !this.isPrivateStreamUrl(cam.streamUrl)) {
           const rtspUrl = this.buildRtspUrl(cam.streamUrl, cam.username, cam.password, cam.organizationId, cam.id);
           yamlContent += `  "${cam.id}":\n    source: "${rtspUrl}"\n    sourceProtocol: tcp\n`;
-          // Sync via API for immediate effect (no restart needed)
           apiPromises.push(this.syncMediaMtxPath(cam.id, rtspUrl));
+        } else {
+          yamlContent += `  "${cam.id}":\n    source: publisher\n`;
+          apiPromises.push(this.syncMediaMtxPath(cam.id, undefined));
         }
       }
 
