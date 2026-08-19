@@ -9,9 +9,9 @@ import { faCircle, faStar } from '@fortawesome/free-solid-svg-icons';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CARD_W_NORMAL   = 185;   // px — resting width
+const CARD_W_NORMAL = 185;   // px — resting width
 const CARD_W_EXPANDED = 320;   // px — hovered width (pushes neighbors)
-const CARD_H          = 460;   // px — uniform height for ALL cards
+const CARD_H = 460;   // px — uniform height for ALL cards
 
 // ─── Team Data ────────────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ const team: TeamMember[] = [
     id: 'supervisor',
     name: 'LILIS NUR HAYATI',
     role: 'DOSEN PEMBIMBING',
-    image: '/assets/dospen_Lilis Nur Hayati, S.Kom., M.Eng., MTA.png',
+    image: '/assets/dospen_Lilis_Nur_Hayati.png',
     faculty: 'Fakultas Ilmu Komputer',
     department: 'S1 Teknik Informatika',
     expertise: 'Penasihat & Pengarah Riset',
@@ -106,9 +106,9 @@ function CornerBrackets({ color, size = 14 }: { color: string; size?: number }) 
   const b: React.CSSProperties = { position: 'absolute', width: s, height: s, zIndex: 5 };
   return (
     <>
-      <div style={{ ...b, top: 8,  left: 8,  borderTop:    `2px solid ${color}`, borderLeft:  `2px solid ${color}`, transition: 'border-color 0.3s' }} />
-      <div style={{ ...b, top: 8,  right: 8, borderTop:    `2px solid ${color}`, borderRight: `2px solid ${color}`, transition: 'border-color 0.3s' }} />
-      <div style={{ ...b, bottom: 8, left: 8,  borderBottom: `2px solid ${color}`, borderLeft:  `2px solid ${color}`, transition: 'border-color 0.3s' }} />
+      <div style={{ ...b, top: 8, left: 8, borderTop: `2px solid ${color}`, borderLeft: `2px solid ${color}`, transition: 'border-color 0.3s' }} />
+      <div style={{ ...b, top: 8, right: 8, borderTop: `2px solid ${color}`, borderRight: `2px solid ${color}`, transition: 'border-color 0.3s' }} />
+      <div style={{ ...b, bottom: 8, left: 8, borderBottom: `2px solid ${color}`, borderLeft: `2px solid ${color}`, transition: 'border-color 0.3s' }} />
       <div style={{ ...b, bottom: 8, right: 8, borderBottom: `2px solid ${color}`, borderRight: `2px solid ${color}`, transition: 'border-color 0.3s' }} />
     </>
   );
@@ -212,9 +212,9 @@ const TeamCard: React.FC<{ member: TeamMember; delay: number; inView: boolean }>
       } : { opacity: 0, y: 32, width: CARD_W_NORMAL }}
       transition={{
         opacity: { duration: 0.5, delay },
-        y:       { duration: 0.5, delay, type: 'spring', stiffness: 100, damping: 22 },
-        width:   { type: 'spring', stiffness: 280, damping: 28 },
-        zIndex:  { duration: 0 },
+        y: { duration: 0.5, delay, type: 'spring', stiffness: 100, damping: 22 },
+        width: { type: 'spring', stiffness: 280, damping: 28 },
+        zIndex: { duration: 0 },
       }}
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}
@@ -324,11 +324,11 @@ export const TeamSection: React.FC = () => {
 
   useEffect(() => {
     setStars(Array.from({ length: 65 }).map(() => ({
-      w:   Math.random() * 2 + 0.5,
-      h:   Math.random() * 2 + 0.5,
-      l:   `${Math.random() * 100}%`,
-      t:   `${Math.random() * 100}%`,
-      o:   Math.random() * 0.22 + 0.04,
+      w: Math.random() * 2 + 0.5,
+      h: Math.random() * 2 + 0.5,
+      l: `${Math.random() * 100}%`,
+      t: `${Math.random() * 100}%`,
+      o: Math.random() * 0.22 + 0.04,
       dur: `${Math.random() * 5 + 3}s`,
       del: `${Math.random() * 5}s`,
     })));
