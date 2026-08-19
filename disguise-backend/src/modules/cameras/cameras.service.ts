@@ -227,6 +227,8 @@ webrtcICEServers2:
 webrtcAdditionalHosts:
   - 34.101.174.33
   - stream.disguise.id
+readTimeout: 30s
+writeTimeout: 30s
 rtsp: yes
 rtmp: yes
 hls: yes
@@ -282,6 +284,25 @@ paths:
     });
 
     if (!camera) throw notFound('Camera');
+
+    // For Edge cameras (private LAN RTSP), check agent heartbeat instead of probing private IP directly from GCP
+    if (this.isPrivateStreamUrl(camera.streamUrl)) {
+      const { getRedis } = require('../../config/redis');
+      const redis = getRedis();
+      const heartbeatAt = await redis.get(`camera:${id}:health:agentHeartbeatAt`);
+      const isAlive = heartbeatAt && (Date.now() - parseInt(heartbeatAt) < 60000);
+      if (isAlive) {
+        await prisma.cctvSource.update({
+          where: { id },
+          data: { status: 'online', lastSeenAt: new Date() },
+        });
+        return {
+          success: true,
+          message: 'Edge Camera Agent is connected and active.',
+        };
+      }
+    }
+
     if (!camera.streamUrl) throw badRequest('Camera does not have a stream URL configured');
 
     const probePath = typeof ffprobe === 'string' ? ffprobe : ffprobe.path;

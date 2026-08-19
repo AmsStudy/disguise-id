@@ -6,6 +6,8 @@ webrtcICEServers2:
 webrtcAdditionalHosts:
   - 34.101.174.33
   - stream.disguise.id
+readTimeout: 30s
+writeTimeout: 30s
 rtsp: yes
 rtmp: yes
 hls: yes
