@@ -94,8 +94,6 @@ watchlistMobileRouter.get(
         where: {
           personId: id,
           organizationId: orgId,
-          // optionally only get confirmed/pending alerts
-          status: { in: ['pending', 'confirmed'] } 
         },
         include: {
           detectionEvent: {
@@ -107,17 +105,26 @@ watchlistMobileRouter.get(
         orderBy: { createdAt: 'asc' }
       });
       
-      const trail = alerts
-        .filter(a => a.detectionEvent?.source?.latitude && a.detectionEvent?.source?.longitude)
-        .map(a => ({
+      const trail = alerts.map(a => {
+        const simScore = Number(a.similarityScore || 0);
+        return {
           alert_id: a.id,
           detected_at: a.createdAt,
+          status: a.status,
+          score: {
+            raw: simScore,
+            display_text: Math.round(simScore * 100) + '%',
+            confidence_band: simScore >= 0.85 ? 'high' : (simScore >= 0.7 ? 'medium' : 'low')
+          },
           camera: {
+            id: a.detectionEvent?.source?.id || '',
             name: a.detectionEvent?.source?.name || 'Unknown',
-            latitude: Number(a.detectionEvent?.source?.latitude),
-            longitude: Number(a.detectionEvent?.source?.longitude)
+            location_name: a.detectionEvent?.source?.locationName || '',
+            latitude: a.detectionEvent?.source?.latitude ? Number(a.detectionEvent.source.latitude) : null,
+            longitude: a.detectionEvent?.source?.longitude ? Number(a.detectionEvent.source.longitude) : null
           }
-        }));
+        };
+      });
       
       sendSuccess(res, trail);
     } catch (err) {
