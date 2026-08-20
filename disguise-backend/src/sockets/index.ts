@@ -17,9 +17,12 @@ export const initializeSocket = (httpServer: HttpServer): void => {
 
   // JWT authentication middleware
   io.use((socket, next) => {
-    const token = socket.handshake.query.token as string;
+    const rawAuth = socket.handshake.headers?.authorization;
+    const bearerToken = rawAuth?.startsWith('Bearer ') ? rawAuth.slice(7) : rawAuth;
+    const token = (socket.handshake.auth?.token || socket.handshake.query?.token || bearerToken) as string;
 
     if (!token) {
+      logger.warn('WebSocket connection rejected: Missing token');
       return next(new Error('Authentication required'));
     }
 
@@ -28,6 +31,7 @@ export const initializeSocket = (httpServer: HttpServer): void => {
       socket.data.user = payload;
       next();
     } catch {
+      logger.warn('WebSocket connection rejected: Invalid or expired token');
       next(new Error('Invalid or expired token'));
     }
   });
