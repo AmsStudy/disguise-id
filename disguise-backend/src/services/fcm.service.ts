@@ -1,3 +1,4 @@
+import axios from 'axios';
 import prisma from '../config/database';
 import { logger } from '../config/logger';
 
@@ -12,23 +13,18 @@ export interface AlertNotificationData {
 }
 
 export class FCMService {
-  private isInitialized = false;
+  private serverKey?: string;
 
   constructor() {
     this.init();
   }
 
   private init() {
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (serviceAccountKey) {
-      try {
-        logger.info('Firebase Admin credentials detected. FCM push notifications enabled.');
-        this.isInitialized = true;
-      } catch (err) {
-        logger.warn('Failed to initialize Firebase Admin SDK', { error: err });
-      }
+    this.serverKey = process.env.FIREBASE_SERVER_KEY || process.env.FCM_SERVER_KEY;
+    if (this.serverKey) {
+      logger.info('FCM Service: FCM Server Key configured. Background push notifications active.');
     } else {
-      logger.info('FCM Service: No FIREBASE_SERVICE_ACCOUNT set. In-app Socket.io realtime events will handle active alerts.');
+      logger.info('FCM Service: No FIREBASE_SERVER_KEY set. In-app Socket.io realtime events will handle foreground alerts.');
     }
   }
 
@@ -54,13 +50,70 @@ export class FCMService {
         return;
       }
 
-      logger.info('Preparing to dispatch FCM push notification to field devices', {
+      const tokens = deviceTokens.map(d => d.token);
+      const similarityPct = (alert.similarity * 100).toFixed(1);
+
+      logger.info('Dispatching FCM push notification to field devices', {
         orgId,
         alertId: alert.alertId,
-        deviceCount: deviceTokens.length,
+        deviceCount: tokens.length,
       });
 
-      logger.info(`✅ Alert notification queued for ${deviceTokens.length} device(s)`);
+      if (!this.serverKey) {
+        logger.debug('Skipping FCM HTTP dispatch (FIREBASE_SERVER_KEY not set)');
+        return;
+      }
+
+      // 2. Dispatch FCM Multicast / Batch via FCM Legacy / v1 Endpoint
+      const payload = {
+        registration_ids: tokens,
+        priority: 'high',
+        notification: {
+          title: `🚨 TARGET DPO TERDETEKSI: ${alert.personName}`,
+          body: `Kemiripan: ${similarityPct}% di ${alert.cameraName} (Status: ${alert.dangerLevel.toUpperCase()})`,
+          sound: 'alarm_high_priority',
+          android_channel_id: 'disguise_critical_alerts',
+        },
+        data: {
+          id: alert.alertId,
+          alert_id: alert.alertId,
+          person_name: alert.personName,
+          camera_name: alert.cameraName,
+          similarity: alert.similarity.toString(),
+          danger_level: alert.dangerLevel,
+          face_crop_url: alert.faceCropUrl || '',
+          photo_url: alert.photoUrl || '',
+          click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        },
+      };
+
+      const response = await axios.post('https://fcm.googleapis.com/fcm/send', payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `key=${this.serverKey}`,
+        },
+        timeout: 8000,
+      });
+
+      // 3. Prune invalid tokens if FCM reported failures
+      if (response.data && response.data.results) {
+        const results = response.data.results as Array<{ error?: string }>;
+        const invalidTokens: string[] = [];
+        results.forEach((res, idx) => {
+          if (res.error === 'NotRegistered' || res.error === 'InvalidRegistration') {
+            invalidTokens.push(tokens[idx]);
+          }
+        });
+
+        if (invalidTokens.length > 0) {
+          logger.info(`Pruning ${invalidTokens.length} stale FCM device token(s)`);
+          await prisma.deviceToken.deleteMany({
+            where: { token: { in: invalidTokens } },
+          });
+        }
+      }
+
+      logger.info(`✅ Alert push notification sent to ${tokens.length} device(s)`);
     } catch (err) {
       logger.error('Failed to send FCM push notification', { error: err });
     }
