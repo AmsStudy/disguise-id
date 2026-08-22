@@ -8,42 +8,45 @@ interface SimilarityScoreProps {
   showBar?: boolean;
 }
 
+function calculateCalibratedPercentage(distance: number): number {
+  if (distance <= 0.70) {
+    return Math.min(99.0, Math.max(92.0, 99.0 - (distance / 0.70) * 7.0));
+  } else if (distance <= 1.12) {
+    return 92.0 - ((distance - 0.70) / (1.12 - 0.70)) * 14.0;
+  } else if (distance <= 1.30) {
+    return 78.0 - ((distance - 1.12) / (1.30 - 1.12)) * 23.0;
+  } else {
+    return Math.max(0.0, 55.0 - ((distance - 1.30) / 0.70) * 55.0);
+  }
+}
+
 export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
   score,
   size = 'md',
   showBar = false,
 }) => {
   const distance = Math.abs(score);
-  // VAE Euclidean distances are negative in DB or > 1.5 in raw values
-  const isDistance = score < 0 || distance > 1.5;
+  const isDistance = score < 0 || distance > 1.0;
 
-  // Calculate biometric accuracy percentage based on empirical Facenet thresholds
-  // Distance 0.0 = 100%, Distance 2.0 = 0%
-  // Tier TINGGI: distance <= 0.8 -> >= 60.0%
-  // Tier SEDANG: 0.8 < distance <= 1.35 -> >= 32.5%
-  // Tier RENDAH: distance > 1.35 -> < 32.5%
   let accuracyPct = 0;
   if (isDistance) {
-    accuracyPct = 100 * (1 - distance / 2.0);
-    accuracyPct = Math.max(0, Math.min(100, accuracyPct));
+    accuracyPct = calculateCalibratedPercentage(distance);
   } else {
     // Legacy cosine similarity fallback (0.0 to 1.0)
     accuracyPct = Math.min(100, Math.max(0, score * 100));
   }
 
-  // Round to 1 decimal place for professional presentation
   const pctStr = accuracyPct.toFixed(1);
 
-  // Unambiguous biometric classification
   let tierLabel = 'RENDAH';
   let tierDesc = 'Bukan Target / Beda Orang';
   let color = '#FF3D3D'; // Coral Red
 
-  if (accuracyPct >= 80.0) {
+  if (accuracyPct >= 78.0) {
     tierLabel = 'TINGGI';
     tierDesc = 'Identitas Positif / Sangat Mirip';
     color = '#00E676'; // Neon Green
-  } else if (accuracyPct >= 65.0) {
+  } else if (accuracyPct >= 55.0) {
     tierLabel = 'SEDANG';
     tierDesc = 'Kemiripan Sedang / Perlu Verifikasi';
     color = '#FFD600'; // Amber Gold
@@ -60,7 +63,7 @@ export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
       {/* Main Percentage Readout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
         <span style={{ fontSize: fontSizeMap[size] === '13px' ? '12px' : '15px' }}>
-          {accuracyPct >= 80.0 ? '🎯' : accuracyPct >= 65.0 ? '⚠️' : '❌'}
+          {accuracyPct >= 78.0 ? '🎯' : accuracyPct >= 55.0 ? '⚠️' : '❌'}
         </span>
         <span
           style={{
@@ -98,27 +101,26 @@ export const SimilarityScore: React.FC<SimilarityScoreProps> = ({
         </div>
       )}
 
-      {/* Neon Visual Confidence Bar */}
+      {/* Accuracy Level Bar */}
       {showBar && (
         <div
           style={{
             width: '100%',
-            height: '5px',
-            background: 'rgba(255,255,255,0.08)',
+            height: size === 'lg' ? '6px' : '4px',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
             borderRadius: '3px',
             overflow: 'hidden',
             marginTop: '2px',
-            border: '1px solid rgba(255,255,255,0.05)',
           }}
         >
           <div
             style={{
-              width: `${Math.max(5, Math.min(100, accuracyPct))}%`,
+              width: `${accuracyPct}%`,
               height: '100%',
-              background: `linear-gradient(90deg, ${color}88, ${color})`,
-              boxShadow: `0 0 10px ${color}`,
+              backgroundColor: color,
               borderRadius: '3px',
-              transition: 'width 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+              transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: `0 0 8px ${color}`,
             }}
           />
         </div>
