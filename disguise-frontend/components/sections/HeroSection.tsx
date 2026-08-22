@@ -253,7 +253,7 @@ export const HeroSection: React.FC = () => {
                   textShadow: '0 4px 28px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9)',
                 }}
               >
-                Kamu menyamar?
+                KAMU MENYAMAR?
               </div>
 
               <div
@@ -268,8 +268,7 @@ export const HeroSection: React.FC = () => {
                   animation: 'glitch 10s infinite',
                 }}
               >
-                <div>KAMI</div>
-                <div>MEMBONGKAR!</div>
+                <div>KAMI MEMBONGKAR!</div>
               </div>
             </h1>
           </motion.div>
