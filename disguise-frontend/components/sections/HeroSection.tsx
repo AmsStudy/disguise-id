@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faChevronDown, faCircle, faShieldHalved, faBolt, faBrain } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faChevronDown, faShieldHalved, faBolt, faBrain } from '@fortawesome/free-solid-svg-icons';
 import CountUp from 'react-countup';
 
 const stats = [
@@ -27,19 +27,20 @@ const dustParticles = Array.from({ length: 50 }).map((_, i) => ({
 
 export const HeroSection: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const loopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [videoEnded, setVideoEnded] = useState(false);
   const [showImageBg, setShowImageBg] = useState(false);
   const [phase, setPhase] = useState(0);
   const [startCount, setStartCount] = useState(false);
 
   useEffect(() => {
-    // Timeline orchestration:
+    // Timeline orchestration for first entrance:
     // 0s - 6s: Cinematic mascot intro video
     // 7.0s: Phase 1 (Status badge appears)
     // 7.8s: Phase 2 (Main Title appears)
     // 8.6s: Phase 3 (Subtitle narration appears)
     // 9.4s: Phase 4 (CTA Buttons appear)
-    // 10.0s: Video transitions to after-background.webp + Phase 5 (Stats appear & settled in center)
+    // 10.0s: Phase 5 (Stats appear & settled in position)
     const timers = [
       setTimeout(() => setPhase(1), 7000),
       setTimeout(() => setPhase(2), 7800),
@@ -47,21 +48,41 @@ export const HeroSection: React.FC = () => {
       setTimeout(() => setPhase(4), 9400),
       setTimeout(() => {
         setPhase(5);
-        setShowImageBg(true);
-        setVideoEnded(true);
         setStartCount(true);
       }, 10000),
     ];
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      timers.forEach(clearTimeout);
+      if (loopTimerRef.current) clearTimeout(loopTimerRef.current);
+    };
   }, []);
+
+  const handleVideoEndedOrReached10s = () => {
+    if (showImageBg) return;
+
+    // 1. Show static freeze image
+    setShowImageBg(true);
+    setVideoEnded(true);
+    setPhase(5);
+    setStartCount(true);
+
+    if (loopTimerRef.current) clearTimeout(loopTimerRef.current);
+
+    // 2. Pause on static image for exactly 5 seconds, then replay the video smoothly
+    loopTimerRef.current = setTimeout(() => {
+      setShowImageBg(false);
+      setVideoEnded(false);
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => { });
+      }
+    }, 5000);
+  };
 
   const handleVideoTimeUpdate = () => {
     if (videoRef.current && videoRef.current.currentTime >= 10 && !showImageBg) {
-      setShowImageBg(true);
-      setVideoEnded(true);
-      setPhase(5);
-      setStartCount(true);
+      handleVideoEndedOrReached10s();
     }
   };
 
@@ -78,60 +99,56 @@ export const HeroSection: React.FC = () => {
         background: '#070F18',
       }}
     >
-      {/* 1. Video Background (0 - 10s) */}
+      {/* 1. Video Background (Plays 0 - 10s, then loops after 5s image freeze) */}
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
         onTimeUpdate={handleVideoTimeUpdate}
-        onEnded={() => {
-          setShowImageBg(true);
-          setVideoEnded(true);
-          setPhase(5);
-          setStartCount(true);
-        }}
+        onEnded={handleVideoEndedOrReached10s}
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
           objectFit: 'cover',
+          objectPosition: 'right center',
           zIndex: 1,
           opacity: showImageBg ? 0 : 1,
-          transition: 'opacity 1.5s ease-in-out',
+          transition: 'opacity 1.2s ease-in-out',
           pointerEvents: 'none',
         }}
       >
         <source src="/assets/background/main-section.mp4" type="video/mp4" />
       </video>
 
-      {/* 2. After-Background Static Image (Appears smoothly after 10s) */}
+      {/* 2. After-Background Static Image (Appears smoothly after 10s for 5 seconds) */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           backgroundImage: 'url(/assets/background/after-background.webp)',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundPosition: 'right center',
           zIndex: 2,
           opacity: showImageBg ? 1 : 0,
-          transition: 'opacity 1.5s ease-in-out',
+          transition: 'opacity 1.2s ease-in-out',
           pointerEvents: 'none',
         }}
       />
 
-      {/* 3. Dark Sci-Fi Overlay & Vignette for Maximum Contrast */}
+      {/* 3. Dark Sci-Fi Asymmetric Gradient Overlay (Higher contrast on left for text, clear on right for mascot) */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background: showImageBg
-            ? 'radial-gradient(circle at center, rgba(7, 15, 24, 0.45) 0%, rgba(7, 15, 24, 0.85) 100%)'
-            : 'radial-gradient(circle at center, rgba(7, 15, 24, 0.2) 0%, rgba(7, 15, 24, 0.75) 100%)',
+            ? 'linear-gradient(to right, rgba(7, 15, 24, 0.95) 0%, rgba(7, 15, 24, 0.85) 45%, rgba(7, 15, 24, 0.35) 80%, rgba(7, 15, 24, 0.6) 100%)'
+            : 'linear-gradient(to right, rgba(7, 15, 24, 0.92) 0%, rgba(7, 15, 24, 0.80) 45%, rgba(7, 15, 24, 0.20) 80%, rgba(7, 15, 24, 0.5) 100%)',
           zIndex: 3,
           pointerEvents: 'none',
-          transition: 'background 1.5s ease',
+          transition: 'background 1.2s ease',
         }}
       />
 
@@ -172,7 +189,7 @@ export const HeroSection: React.FC = () => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '45%',
+          height: '40%',
           backgroundImage:
             'linear-gradient(rgba(0, 151, 178, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 151, 178, 0.1) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
@@ -185,246 +202,231 @@ export const HeroSection: React.FC = () => {
         }}
       />
 
-      {/* 6. Main Hero Content Container (Centered & Staggered Animation at 7-10s) */}
+      {/* 6. Main Hero Split Content Grid (Text Left, Reserved Mascot Area Right) */}
       <div
         style={{
           position: 'relative',
           zIndex: 10,
-          maxWidth: '1100px',
+          maxWidth: '1380px',
+          width: '100%',
           margin: '0 auto',
-          padding: '140px 24px 80px',
-          display: 'flex',
-          flexDirection: 'column',
+          padding: '130px 32px 70px',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(320px, 660px) 1fr',
           alignItems: 'center',
-          textAlign: 'center',
+          gap: '40px',
         }}
+        className="hero-split-grid"
       >
-        {/* Step 1 (7.0s): System Status Badge */}
-        {/* <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: phase >= 1 ? 1 : 0, y: phase >= 1 ? 0 : -20 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '8px 20px',
-            background: 'rgba(17, 34, 54, 0.75)',
-            border: '1px solid rgba(0, 229, 255, 0.35)',
-            backdropFilter: 'blur(16px)',
-            borderRadius: '999px',
-            marginBottom: '24px',
-            boxShadow: '0 0 20px rgba(0, 229, 255, 0.2)',
-          }}
-        >
-          <FontAwesomeIcon
-            icon={faCircle}
-            style={{
-              fontSize: '8px',
-              color: '#00E676',
-              filter: 'drop-shadow(0 0 8px #00E676)',
-              animation: 'pulseGlow 1.2s ease-in-out infinite',
+        {/* Left Column: Information Text, CTAs, and Statistics */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+
+          {/* Main Title (Wajah Tertutup? Kami Tetap Mengenalinya.) */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 25 }}
+            animate={{
+              opacity: phase >= 2 ? 1 : 0,
+              scale: phase >= 2 ? 1 : 0.95,
+              y: phase >= 2 ? 0 : 25,
             }}
-          />
-          <span
-            style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '13px',
-              color: '#E8F4F8',
-              letterSpacing: '0.05em',
-              fontWeight: 600,
-            }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            style={{ marginBottom: '20px' }}
           >
-            DISGUISE-ID ACTIVE — REAL-TIME SURVEILLANCE
-          </span>
-        </motion.div> */}
-
-        {/* Step 2 (7.8s): Main Title */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 30 }}
-          animate={{
-            opacity: phase >= 2 ? 1 : 0,
-            scale: phase >= 2 ? 1 : 0.95,
-            y: phase >= 2 ? 0 : 30,
-          }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{ marginBottom: '24px' }}
-        >
-          <h1 style={{ margin: 0 }}>
-            <div
-              style={{
-                fontFamily: 'Orbitron, monospace',
-                fontSize: 'clamp(32px, 5.5vw, 68px)',
-                fontWeight: 800,
-                color: '#E8F4F8',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                marginBottom: '8px',
-                textShadow: '0 4px 24px rgba(0,0,0,0.8)',
-              }}
-            >
-              WAJAH TERTUTUP?
-            </div>
-
-            <div
-              style={{
-                fontFamily: 'Orbitron, monospace',
-                fontSize: 'clamp(32px, 5.5vw, 68px)',
-                fontWeight: 800,
-                color: '#00E5FF',
-                lineHeight: 1.15,
-                letterSpacing: '-0.02em',
-                textShadow: '0 0 25px rgba(0, 229, 255, 0.6), 2px 2px 0px rgba(255, 107, 53, 0.85)',
-                animation: 'glitch 10s infinite',
-              }}
-            >
-              <div>KAMI TETAP</div>
-              <div>MENGENALINYA.</div>
-            </div>
-          </h1>
-        </motion.div>
-
-        {/* Step 3 (8.6s): Subtitle Narration */}
-        <motion.p
-          initial={{ opacity: 0, y: 25 }}
-          animate={{ opacity: phase >= 3 ? 1 : 0, y: phase >= 3 ? 0 : 25 }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
-          style={{
-            fontFamily: 'Inter, sans-serif',
-            fontSize: 'clamp(15px, 2vw, 18px)',
-            color: '#B0CFE2',
-            maxWidth: '680px',
-            lineHeight: 1.7,
-            marginBottom: '36px',
-            textShadow: '0 2px 10px rgba(0,0,0,0.8)',
-          }}
-        >
-          Sistem intelijen pengenalan wajah taktis berbasis <strong>Edge AI (Raspberry Pi)</strong> dan <strong>Cloud DeepFace</strong>.
-          Mendeteksi identitas DPO secara instan meski wajah tersamar masker, helm, atau kacamata hitam.
-        </motion.p>
-
-        {/* Step 4 (9.4s): Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: phase >= 4 ? 1 : 0, y: phase >= 4 ? 0 : 20 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          style={{
-            display: 'flex',
-            gap: '16px',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            marginBottom: '48px',
-          }}
-        >
-          <Link href="/login">
-            <Button variant="fox" size="lg" id="hero-demo-btn">
-              <FontAwesomeIcon icon={faRocket} style={{ marginRight: '10px' }} />
-              Buka Dashboard Command Center
-            </Button>
-          </Link>
-          <button
-            onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
-            style={{
-              padding: '14px 28px',
-              borderRadius: '999px',
-              background: 'rgba(17, 34, 54, 0.6)',
-              border: '1px solid rgba(0, 229, 255, 0.35)',
-              backdropFilter: 'blur(12px)',
-              color: '#00CFE8',
-              fontSize: '15px',
-              fontWeight: 600,
-              fontFamily: 'Inter, sans-serif',
-              cursor: 'pointer',
-              transition: 'all 0.25s ease',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)';
-              e.currentTarget.style.borderColor = '#00E5FF';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(17, 34, 54, 0.6)';
-              e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.35)';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            Pelajari Arsitektur
-            <FontAwesomeIcon icon={faChevronDown} style={{ fontSize: '12px' }} />
-          </button>
-        </motion.div>
-
-        {/* Step 5 (10.0s+): Verified Capabilities Stats (Settled in Center) */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: phase >= 5 ? 1 : 0, y: phase >= 5 ? 0 : 30 }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '20px',
-            width: '100%',
-            maxWidth: '820px',
-          }}
-          className="hero-stats-grid"
-        >
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              style={{
-                padding: '18px 24px',
-                background: 'rgba(17, 34, 54, 0.75)',
-                border: '1px solid rgba(0, 229, 255, 0.2)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '18px',
-                textAlign: 'center',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-              }}
-            >
+            <h1 style={{ margin: 0, textAlign: 'left' }}>
               <div
                 style={{
-                  fontFamily: 'JetBrains Mono, monospace',
-                  fontSize: 'clamp(22px, 3vw, 30px)',
+                  fontFamily: 'Orbitron, monospace',
+                  fontSize: 'clamp(28px, 4.2vw, 56px)',
                   fontWeight: 800,
-                  color: stat.color,
-                  textShadow: `0 0 20px ${stat.color}66`,
-                  marginBottom: '4px',
+                  color: '#E8F4F8',
+                  lineHeight: 1.15,
+                  letterSpacing: '-0.02em',
+                  marginBottom: '8px',
+                  textShadow: '0 4px 24px rgba(0,0,0,0.8)',
                 }}
               >
-                {startCount ? (
-                  <>
-                    {stat.prefix}
-                    <CountUp
-                      end={stat.value}
-                      duration={1.8}
-                      decimals={stat.decimals}
-                      separator=","
-                      suffix={stat.suffix}
-                    />
-                  </>
-                ) : (
-                  '0'
-                )}
+                Kamu menyamar?
               </div>
+
               <div
                 style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: '#8BAFC4',
-                  fontFamily: 'Inter, sans-serif',
-                  letterSpacing: '0.04em',
+                  fontFamily: 'Orbitron, monospace',
+                  fontSize: 'clamp(28px, 4.2vw, 56px)',
+                  fontWeight: 800,
+                  color: '#00E5FF',
+                  lineHeight: 1.15,
+                  letterSpacing: '-0.02em',
+                  textShadow: '0 0 25px rgba(0, 229, 255, 0.6), 2px 2px 0px rgba(255, 107, 53, 0.85)',
+                  animation: 'glitch 10s infinite',
                 }}
               >
-                {stat.label}
+                <div>KAMI</div>
+                <div>MEMBONGKAR!.</div>
               </div>
-            </div>
-          ))}
-        </motion.div>
+            </h1>
+          </motion.div>
+
+          {/* Subtitle Narration */}
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: phase >= 3 ? 1 : 0, y: phase >= 3 ? 0 : 20 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            style={{
+              fontFamily: 'Inter, sans-serif',
+              fontSize: 'clamp(14px, 1.25vw, 17px)',
+              color: '#B0CFE2',
+              maxWidth: '580px',
+              lineHeight: 1.7,
+              marginBottom: '32px',
+              textAlign: 'left',
+              textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+            }}
+          >
+            Sistem intelijen pengenalan wajah taktis berbasis <strong>Edge AI (Raspberry Pi)</strong> dan <strong>Cloud DeepFace</strong>.
+            Mendeteksi identitas DPO secara instan meski wajah tersamar masker, helm, atau kacamata hitam.
+          </motion.p>
+
+          {/* Action Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: phase >= 4 ? 1 : 0, y: phase >= 4 ? 0 : 20 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={{
+              display: 'flex',
+              gap: '14px',
+              justifyContent: 'flex-start',
+              flexWrap: 'wrap',
+              marginBottom: '40px',
+            }}
+          >
+            <Link href="/login">
+              <Button variant="fox" size="lg" id="hero-demo-btn">
+                <FontAwesomeIcon icon={faRocket} style={{ marginRight: '10px' }} />
+                Buka Dashboard Command Center
+              </Button>
+            </Link>
+            <button
+              onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+              style={{
+                padding: '14px 26px',
+                borderRadius: '999px',
+                background: 'rgba(17, 34, 54, 0.75)',
+                border: '1px solid rgba(0, 229, 255, 0.35)',
+                backdropFilter: 'blur(12px)',
+                color: '#00CFE8',
+                fontSize: '14px',
+                fontWeight: 600,
+                fontFamily: 'Inter, sans-serif',
+                cursor: 'pointer',
+                transition: 'all 0.25s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)';
+                e.currentTarget.style.borderColor = '#00E5FF';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(17, 34, 54, 0.75)';
+                e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.35)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              Pelajari Arsitektur
+              <FontAwesomeIcon icon={faChevronDown} style={{ fontSize: '12px' }} />
+            </button>
+          </motion.div>
+
+          {/* Capabilities Statistics Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
+            animate={{ opacity: phase >= 5 ? 1 : 0, y: phase >= 5 ? 0 : 25 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '14px',
+              width: '100%',
+              maxWidth: '580px',
+            }}
+            className="hero-stats-grid"
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                style={{
+                  padding: '14px 18px',
+                  background: 'rgba(17, 34, 54, 0.85)',
+                  border: '1px solid rgba(0, 229, 255, 0.25)',
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: '14px',
+                  textAlign: 'left',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 'clamp(20px, 2.4vw, 26px)',
+                    fontWeight: 800,
+                    color: stat.color,
+                    textShadow: `0 0 16px ${stat.color}66`,
+                    marginBottom: '2px',
+                  }}
+                >
+                  {startCount ? (
+                    <>
+                      {stat.prefix}
+                      <CountUp
+                        end={stat.value}
+                        duration={1.8}
+                        decimals={stat.decimals}
+                        separator=","
+                        suffix={stat.suffix}
+                      />
+                    </>
+                  ) : (
+                    '0'
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#8BAFC4',
+                    fontFamily: 'Inter, sans-serif',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+
+        {/* Right Column: Open space dedicated to showcase the Mascot in background */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }} className="hero-mascot-space" />
       </div>
 
       <style>{`
+        @media (max-width: 992px) {
+          .hero-split-grid {
+            grid-template-columns: 1fr !important;
+            padding-top: 110px !important;
+            padding-bottom: 50px !important;
+          }
+          .hero-mascot-space {
+            display: none !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .hero-stats-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
         @keyframes floatDust {
           0% {
             transform: translateY(0px) translateX(0px);
@@ -439,42 +441,24 @@ export const HeroSection: React.FC = () => {
             opacity: 0.2;
           }
         }
-        @keyframes saberSweep {
+        @keyframes glitch {
           0% {
-            background-position: 200% center;
+            transform: translate(0);
+          }
+          20% {
+            transform: translate(-1px, 1px);
+          }
+          40% {
+            transform: translate(-1px, -1px);
+          }
+          60% {
+            transform: translate(1px, 1px);
+          }
+          80% {
+            transform: translate(1px, -1px);
           }
           100% {
-            background-position: -200% center;
-          }
-        }
-        @keyframes saberGlowPulse {
-          0%, 100% {
-            filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.8));
-          }
-          50% {
-            filter: drop-shadow(0 0 22px rgba(0, 229, 255, 1)) drop-shadow(0 0 35px #FFFFFF);
-          }
-        }
-        @keyframes saberLaserSweep {
-          0% {
-            left: -60%;
-            opacity: 0;
-          }
-          25% {
-            opacity: 1;
-          }
-          75% {
-            opacity: 1;
-          }
-          100% {
-            left: 110%;
-            opacity: 0;
-          }
-        }
-        @media (max-width: 768px) {
-          .hero-stats-grid {
-            grid-template-columns: 1fr !important;
-            gap: 12px !important;
+            transform: translate(0);
           }
         }
       `}</style>
