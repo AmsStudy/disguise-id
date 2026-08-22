@@ -26,6 +26,14 @@ venv/
 env/
 *.log
 
+# Mobile Android / iOS Build Artifacts
+*.apk
+*.aab
+*.ipa
+disguise-mobile/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
 # Models & Large Files
 *.pt
 *.pth

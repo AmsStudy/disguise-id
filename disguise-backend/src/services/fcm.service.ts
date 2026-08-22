@@ -1,6 +1,7 @@
 import axios from 'axios';
 import prisma from '../config/database';
 import { logger } from '../config/logger';
+import { formatBiometricScore } from '../utils/biometric';
 
 export interface AlertNotificationData {
   alertId: string;
@@ -51,7 +52,8 @@ export class FCMService {
       }
 
       const tokens = deviceTokens.map(d => d.token);
-      const similarityPct = (alert.similarity * 100).toFixed(1);
+      const scoreInfo = formatBiometricScore(alert.similarity);
+      const similarityPct = scoreInfo.display_text;
 
       logger.info('Dispatching FCM push notification to field devices', {
         orgId,

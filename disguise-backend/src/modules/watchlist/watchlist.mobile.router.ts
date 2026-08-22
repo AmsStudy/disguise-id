@@ -3,6 +3,7 @@ import { authenticate } from '../../middleware/auth';
 import { sendSuccess } from '../../utils/response';
 import prisma from '../../config/database';
 import { notFound } from '../../utils/AppError';
+import { formatBiometricScore } from '../../utils/biometric';
 
 export const watchlistMobileRouter = Router();
 
@@ -106,15 +107,17 @@ watchlistMobileRouter.get(
       });
       
       const trail = alerts.map(a => {
-        const simScore = Number(a.similarityScore || 0);
+        const scoreInfo = formatBiometricScore(a.similarityScore);
         return {
           alert_id: a.id,
           detected_at: a.createdAt,
           status: a.status,
           score: {
-            raw: simScore,
-            display_text: Math.round(simScore * 100) + '%',
-            confidence_band: simScore >= 0.85 ? 'high' : (simScore >= 0.7 ? 'medium' : 'low')
+            raw: scoreInfo.percentage / 100,
+            distance: scoreInfo.distance,
+            display_text: scoreInfo.display_text,
+            confidence_band: scoreInfo.confidence_band,
+            tier_label: scoreInfo.tier_label
           },
           camera: {
             id: a.detectionEvent?.source?.id || '',
