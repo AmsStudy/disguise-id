@@ -11,13 +11,34 @@ export const formatRelative = (date: string | Date) => {
   return formatDistanceToNow(d, { addSuffix: true, locale: id });
 };
 
+function calculateCalibratedPercentage(distance: number): number {
+  if (distance <= 0.70) {
+    return Math.min(99.0, Math.max(92.0, 99.0 - (distance / 0.70) * 7.0));
+  } else if (distance <= 1.12) {
+    return 92.0 - ((distance - 0.70) / (1.12 - 0.70)) * 14.0;
+  } else if (distance <= 1.30) {
+    return 78.0 - ((distance - 1.12) / (1.30 - 1.12)) * 23.0;
+  } else {
+    return Math.max(0.0, 55.0 - ((distance - 1.30) / 0.70) * 55.0);
+  }
+}
+
 export const formatSimilarity = (score: number): string => {
+  const distance = Math.abs(score);
+  if (score < 0 || distance > 1.0) {
+    return `${calculateCalibratedPercentage(distance).toFixed(1)}%`;
+  }
   return `${(score * 100).toFixed(1)}%`;
 };
 
 export const getSimilarityColor = (score: number): string => {
-  if (score >= 0.8) return '#00E676';
-  if (score >= 0.57) return '#FFD600';
+  const distance = Math.abs(score);
+  let pct = score * 100;
+  if (score < 0 || distance > 1.0) {
+    pct = calculateCalibratedPercentage(distance);
+  }
+  if (pct >= 78.0) return '#00E676';
+  if (pct >= 55.0) return '#FFD600';
   return '#FF3D3D';
 };
 
