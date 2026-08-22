@@ -19,13 +19,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger(__name__)
 
 def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
-    # Gunakan STREAM_PUSH_RTSP_URL dari .env jika ada, atau otomatis gunakan stream2
-    push_source_url = config.stream_push_rtsp_url
-    if not push_source_url:
-        if "/stream1" in local_rtsp_url:
-            push_source_url = local_rtsp_url.replace("/stream1", "/stream2")
-        else:
-            push_source_url = local_rtsp_url
+    # Gunakan STREAM_PUSH_RTSP_URL dari .env jika ada, atau gunakan stream utama
+    push_source_url = config.stream_push_rtsp_url or local_rtsp_url
 
     # If MEDIAMTX_HOST is explicitly set, use it. Otherwise extract from central_url
     if config.mediamtx_host:
@@ -39,9 +34,11 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
     
     cmd = [
         "ffmpeg",
+        "-nostdin",
         "-use_wallclock_as_timestamps", "1",
         "-fflags", "+genpts+nobuffer",
         "-rtsp_transport", "tcp",
+        "-stimeout", "5000000",
         "-i", push_source_url,
         "-c:v", "copy",
         "-an",
@@ -50,7 +47,7 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         push_url
     ]
     logger.info(f"[FFmpeg] Starting push stream: {push_source_url} -> {push_url}")
-    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
 class StreamSupervisor:
     """

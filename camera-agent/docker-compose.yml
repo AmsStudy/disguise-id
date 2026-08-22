@@ -8,4 +8,6 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - .:/app
     network_mode: "host"
