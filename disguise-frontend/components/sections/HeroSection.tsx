@@ -34,22 +34,16 @@ export const HeroSection: React.FC = () => {
   const [startCount, setStartCount] = useState(false);
 
   useEffect(() => {
-    // Timeline orchestration for first entrance:
-    // 0s - 6s: Cinematic mascot intro video
-    // 7.0s: Phase 1 (Status badge appears)
-    // 7.8s: Phase 2 (Main Title appears)
-    // 8.6s: Phase 3 (Subtitle narration appears)
-    // 9.4s: Phase 4 (CTA Buttons appear)
-    // 10.0s: Phase 5 (Stats appear & settled in position)
+    // Fast, snappy entrance animation within 1s so page is never blank or empty
     const timers = [
-      setTimeout(() => setPhase(1), 7000),
-      setTimeout(() => setPhase(2), 7800),
-      setTimeout(() => setPhase(3), 8600),
-      setTimeout(() => setPhase(4), 9400),
+      setTimeout(() => setPhase(1), 100),
+      setTimeout(() => setPhase(2), 250),
+      setTimeout(() => setPhase(3), 450),
+      setTimeout(() => setPhase(4), 650),
       setTimeout(() => {
         setPhase(5);
         setStartCount(true);
-      }, 10000),
+      }, 850),
     ];
 
     return () => {
@@ -99,7 +93,7 @@ export const HeroSection: React.FC = () => {
         background: '#070F18',
       }}
     >
-      {/* 1. Video Background (Plays 0 - 10s, then loops after 5s image freeze) */}
+      {/* 1. Video Background (Bright & Vivid, plays 0 - 10s, then loops after 5s image freeze) */}
       <video
         ref={videoRef}
         autoPlay
@@ -107,13 +101,14 @@ export const HeroSection: React.FC = () => {
         playsInline
         onTimeUpdate={handleVideoTimeUpdate}
         onEnded={handleVideoEndedOrReached10s}
+        className="hero-bg-video"
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: 'right center',
+          filter: 'brightness(1.18) contrast(1.06) saturate(1.05)',
           zIndex: 1,
           opacity: showImageBg ? 0 : 1,
           transition: 'opacity 1.2s ease-in-out',
@@ -123,14 +118,15 @@ export const HeroSection: React.FC = () => {
         <source src="/assets/background/main-section.mp4" type="video/mp4" />
       </video>
 
-      {/* 2. After-Background Static Image (Appears smoothly after 10s for 5 seconds) */}
+      {/* 2. After-Background Static Image (Bright & Vivid, appears smoothly after 10s for 5 seconds) */}
       <div
+        className="hero-bg-image"
         style={{
           position: 'absolute',
           inset: 0,
           backgroundImage: 'url(/assets/background/after-background.webp)',
           backgroundSize: 'cover',
-          backgroundPosition: 'right center',
+          filter: 'brightness(1.18) contrast(1.06) saturate(1.05)',
           zIndex: 2,
           opacity: showImageBg ? 1 : 0,
           transition: 'opacity 1.2s ease-in-out',
@@ -138,17 +134,29 @@ export const HeroSection: React.FC = () => {
         }}
       />
 
-      {/* 3. Dark Sci-Fi Asymmetric Gradient Overlay (Higher contrast on left for text, clear on right for mascot) */}
+      {/* 3. Transparent / Soft Asymmetric Gradient Overlay */}
       <div
+        className="hero-bg-overlay"
         style={{
           position: 'absolute',
           inset: 0,
-          background: showImageBg
-            ? 'linear-gradient(to right, rgba(7, 15, 24, 0.95) 0%, rgba(7, 15, 24, 0.85) 45%, rgba(7, 15, 24, 0.35) 80%, rgba(7, 15, 24, 0.6) 100%)'
-            : 'linear-gradient(to right, rgba(7, 15, 24, 0.92) 0%, rgba(7, 15, 24, 0.80) 45%, rgba(7, 15, 24, 0.20) 80%, rgba(7, 15, 24, 0.5) 100%)',
           zIndex: 3,
           pointerEvents: 'none',
           transition: 'background 1.2s ease',
+        }}
+      />
+
+      {/* Soft Bottom Vignette for Contrast on Footer & Grid */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '25%',
+          background: 'linear-gradient(to top, rgba(7, 15, 24, 0.65) 0%, transparent 100%)',
+          zIndex: 3,
+          pointerEvents: 'none',
         }}
       />
 
@@ -189,9 +197,9 @@ export const HeroSection: React.FC = () => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '40%',
+          height: '35%',
           backgroundImage:
-            'linear-gradient(rgba(0, 151, 178, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 151, 178, 0.1) 1px, transparent 1px)',
+            'linear-gradient(rgba(0, 151, 178, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 151, 178, 0.12) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
           transform: 'perspective(600px) rotateX(55deg)',
           transformOrigin: 'center bottom',
@@ -202,7 +210,7 @@ export const HeroSection: React.FC = () => {
         }}
       />
 
-      {/* 6. Main Hero Split Content Grid (Text Left, Reserved Mascot Area Right) */}
+      {/* 6. Main Hero Split Content Grid (Text Left, Open Mascot Right) */}
       <div
         style={{
           position: 'relative',
@@ -212,37 +220,37 @@ export const HeroSection: React.FC = () => {
           margin: '0 auto',
           padding: '130px 32px 70px',
           display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 660px) 1fr',
+          gridTemplateColumns: 'minmax(320px, 680px) 1fr',
           alignItems: 'center',
           gap: '40px',
         }}
         className="hero-split-grid"
       >
         {/* Left Column: Information Text, CTAs, and Statistics */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
 
-          {/* Main Title (Wajah Tertutup? Kami Tetap Mengenalinya.) */}
+          {/* Main Title */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 25 }}
+            initial={{ opacity: 0, scale: 0.96, y: 20 }}
             animate={{
               opacity: phase >= 2 ? 1 : 0,
-              scale: phase >= 2 ? 1 : 0.95,
-              y: phase >= 2 ? 0 : 25,
+              scale: phase >= 2 ? 1 : 0.96,
+              y: phase >= 2 ? 0 : 20,
             }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            style={{ marginBottom: '20px' }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            style={{ marginBottom: '20px', width: '100%' }}
           >
             <h1 style={{ margin: 0, textAlign: 'left' }}>
               <div
                 style={{
                   fontFamily: 'Orbitron, monospace',
-                  fontSize: 'clamp(28px, 4.2vw, 56px)',
+                  fontSize: 'clamp(26px, 4.2vw, 56px)',
                   fontWeight: 800,
                   color: '#E8F4F8',
                   lineHeight: 1.15,
                   letterSpacing: '-0.02em',
                   marginBottom: '8px',
-                  textShadow: '0 4px 24px rgba(0,0,0,0.8)',
+                  textShadow: '0 4px 28px rgba(0,0,0,0.95), 0 2px 8px rgba(0,0,0,0.9)',
                 }}
               >
                 Kamu menyamar?
@@ -251,35 +259,35 @@ export const HeroSection: React.FC = () => {
               <div
                 style={{
                   fontFamily: 'Orbitron, monospace',
-                  fontSize: 'clamp(28px, 4.2vw, 56px)',
+                  fontSize: 'clamp(26px, 4.2vw, 56px)',
                   fontWeight: 800,
                   color: '#00E5FF',
                   lineHeight: 1.15,
                   letterSpacing: '-0.02em',
-                  textShadow: '0 0 25px rgba(0, 229, 255, 0.6), 2px 2px 0px rgba(255, 107, 53, 0.85)',
+                  textShadow: '0 0 25px rgba(0, 229, 255, 0.7), 2px 2px 0px rgba(255, 107, 53, 0.9), 0 4px 20px rgba(0,0,0,0.9)',
                   animation: 'glitch 10s infinite',
                 }}
               >
                 <div>KAMI</div>
-                <div>MEMBONGKAR!.</div>
+                <div>MEMBONGKAR!</div>
               </div>
             </h1>
           </motion.div>
 
           {/* Subtitle Narration */}
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: phase >= 3 ? 1 : 0, y: phase >= 3 ? 0 : 20 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: phase >= 3 ? 1 : 0, y: phase >= 3 ? 0 : 15 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
             style={{
               fontFamily: 'Inter, sans-serif',
               fontSize: 'clamp(14px, 1.25vw, 17px)',
-              color: '#B0CFE2',
+              color: '#D2E8F6',
               maxWidth: '580px',
               lineHeight: 1.7,
               marginBottom: '32px',
               textAlign: 'left',
-              textShadow: '0 2px 10px rgba(0,0,0,0.8)',
+              textShadow: '0 3px 12px rgba(0,0,0,0.95), 0 1px 4px rgba(0,0,0,0.9)',
             }}
           >
             Sistem intelijen pengenalan wajah taktis berbasis <strong>Edge AI (Raspberry Pi)</strong> dan <strong>Cloud DeepFace</strong>.
@@ -288,18 +296,20 @@ export const HeroSection: React.FC = () => {
 
           {/* Action Buttons */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: phase >= 4 ? 1 : 0, y: phase >= 4 ? 0 : 20 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: phase >= 4 ? 1 : 0, y: phase >= 4 ? 0 : 15 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
             style={{
               display: 'flex',
               gap: '14px',
               justifyContent: 'flex-start',
               flexWrap: 'wrap',
               marginBottom: '40px',
+              width: '100%',
             }}
+            className="hero-action-buttons"
           >
-            <Link href="/login">
+            <Link href="/login" style={{ textDecoration: 'none' }}>
               <Button variant="fox" size="lg" id="hero-demo-btn">
                 <FontAwesomeIcon icon={faRocket} style={{ marginRight: '10px' }} />
                 Buka Dashboard Command Center
@@ -310,9 +320,9 @@ export const HeroSection: React.FC = () => {
               style={{
                 padding: '14px 26px',
                 borderRadius: '999px',
-                background: 'rgba(17, 34, 54, 0.75)',
-                border: '1px solid rgba(0, 229, 255, 0.35)',
-                backdropFilter: 'blur(12px)',
+                background: 'rgba(17, 34, 54, 0.85)',
+                border: '1px solid rgba(0, 229, 255, 0.4)',
+                backdropFilter: 'blur(16px)',
                 color: '#00CFE8',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -321,16 +331,18 @@ export const HeroSection: React.FC = () => {
                 transition: 'all 0.25s ease',
                 display: 'inline-flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '8px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)';
+                e.currentTarget.style.background = 'rgba(0, 229, 255, 0.2)';
                 e.currentTarget.style.borderColor = '#00E5FF';
                 e.currentTarget.style.transform = 'translateY(-2px)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(17, 34, 54, 0.75)';
-                e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.35)';
+                e.currentTarget.style.background = 'rgba(17, 34, 54, 0.85)';
+                e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.4)';
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
@@ -356,20 +368,22 @@ export const HeroSection: React.FC = () => {
             {stats.map((stat) => (
               <div
                 key={stat.label}
+                className="hero-stat-card"
                 style={{
                   padding: '14px 18px',
-                  background: 'rgba(17, 34, 54, 0.85)',
-                  border: '1px solid rgba(0, 229, 255, 0.25)',
+                  background: 'rgba(17, 34, 54, 0.88)',
+                  border: '1px solid rgba(0, 229, 255, 0.3)',
                   backdropFilter: 'blur(20px)',
                   borderRadius: '14px',
                   textAlign: 'left',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
                 }}
               >
                 <div
+                  className="hero-stat-value"
                   style={{
                     fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 'clamp(20px, 2.4vw, 26px)',
+                    fontSize: 'clamp(18px, 2.4vw, 26px)',
                     fontWeight: 800,
                     color: stat.color,
                     textShadow: `0 0 16px ${stat.color}66`,
@@ -392,6 +406,7 @@ export const HeroSection: React.FC = () => {
                   )}
                 </div>
                 <div
+                  className="hero-stat-label"
                   style={{
                     fontSize: '11px',
                     fontWeight: 600,
@@ -412,19 +427,87 @@ export const HeroSection: React.FC = () => {
       </div>
 
       <style>{`
+        /* Desktop Default: Mascot placed on right side */
+        .hero-bg-video {
+          object-position: 80% center;
+        }
+        .hero-bg-image {
+          background-position: 80% center;
+        }
+        .hero-bg-overlay {
+          background: linear-gradient(to right, rgba(7, 15, 24, 0.82) 0%, rgba(7, 15, 24, 0.50) 45%, rgba(7, 15, 24, 0.05) 75%, transparent 100%);
+        }
+
+        /* Mobile & Tablet: Shift mascot inward to left so entire face, cap & body are in frame */
         @media (max-width: 992px) {
+          .hero-bg-video {
+            object-position: 72% center !important;
+          }
+          .hero-bg-image {
+            background-position: 72% center !important;
+          }
+          .hero-bg-overlay {
+            background: linear-gradient(to bottom, rgba(7, 15, 24, 0.72) 0%, rgba(7, 15, 24, 0.35) 45%, rgba(7, 15, 24, 0.82) 100%) !important;
+          }
           .hero-split-grid {
             grid-template-columns: 1fr !important;
-            padding-top: 110px !important;
-            padding-bottom: 50px !important;
+            max-width: 760px !important;
+            padding: 120px 24px 60px !important;
+            gap: 20px !important;
           }
           .hero-mascot-space {
             display: none !important;
           }
         }
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+          .hero-bg-video {
+            object-position: 74% center !important;
+          }
+          .hero-bg-image {
+            background-position: 74% center !important;
+          }
+          .hero-split-grid {
+            padding: 95px 16px 40px !important;
+          }
+          .hero-action-buttons {
+            flex-direction: column !important;
+            width: 100% !important;
+            gap: 12px !important;
+            margin-bottom: 28px !important;
+          }
+          .hero-action-buttons > * {
+            width: 100% !important;
+          }
+          .hero-action-buttons button,
+          .hero-action-buttons a {
+            width: 100% !important;
+            justify-content: center !important;
+            text-align: center !important;
+          }
           .hero-stats-grid {
-            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+          .hero-stat-card {
+            padding: 10px 8px !important;
+            border-radius: 10px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .hero-bg-video {
+            object-position: 76% center !important;
+          }
+          .hero-bg-image {
+            background-position: 76% center !important;
+          }
+          .hero-stats-grid {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 6px !important;
+          }
+          .hero-stat-card {
+            padding: 8px 4px !important;
+          }
+          .hero-stat-label {
+            font-size: 9.5px !important;
           }
         }
         @keyframes floatDust {
