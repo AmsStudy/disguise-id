@@ -121,6 +121,12 @@ services:
       - CAMERA_CREDENTIAL_KEY_VERSION=v1
       - CAMERA_CREDENTIAL_KEY_BASE64=${CAMERA_CREDENTIAL_KEY_BASE64:-ISzqe6KmlEjDs/nSiKl4us1y8PdGyy5zhyUAIWZdebY=}
       - MEDIAMTX_API_URL=http://mediamtx:9997
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,6 +167,11 @@ services:
       - caddy_config:/config
     environment:
       - DOMAIN_NAME=${DOMAIN_NAME:-disguise.id}
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
 
 volumes:
   postgres_data:

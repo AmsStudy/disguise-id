@@ -14,7 +14,14 @@ http://{$DOMAIN_NAME} {
 
 http://api.{$DOMAIN_NAME} {
     # Rute ke Backend (Express.js)
-    reverse_proxy backend:3000
+    # lb_try_duration: Caddy akan retry koneksi ke backend selama 10 detik
+    # sebelum menyerah dan mengembalikan 502. Ini mencegah 502 sesaat saat backend restart.
+    reverse_proxy backend:3000 {
+        lb_try_duration 10s
+        lb_try_interval 500ms
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
 }
 
 http://storage.{$DOMAIN_NAME} {
