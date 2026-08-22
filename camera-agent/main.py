@@ -6,13 +6,17 @@ import time
 import requests
 import cv2
 import uuid
+import threading
+import subprocess
+from urllib.parse import urlparse
 from config import config
 from capture import RTSPCapture
 from face_detector import FaceDetector
 from uploader import BackendUploader
 from health import HealthReporter
-import subprocess
-from urllib.parse import urlparse
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
     # Gunakan STREAM_PUSH_RTSP_URL dari .env jika ada, atau otomatis gunakan stream2
@@ -30,13 +34,13 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         parsed = urlparse(central_url)
         central_ip = parsed.hostname or "localhost"
     
-    # Push to MediaMTX on the central server via VPN / IP
+    # Push to MediaMTX on the central server via IP/Domain
     push_url = f"rtsp://{central_ip}:8554/{camera_id}"
     
     cmd = [
         "ffmpeg",
         "-use_wallclock_as_timestamps", "1",
-        "-fflags", "+genpts",
+        "-fflags", "+genpts+nobuffer",
         "-rtsp_transport", "tcp",
         "-i", push_source_url,
         "-c:v", "copy",
@@ -45,11 +49,103 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         "-f", "rtsp",
         push_url
     ]
-    logger.info(f"Starting FFmpeg Push to Central Server: {' '.join(cmd)}")
+    logger.info(f"[FFmpeg] Starting push stream: {push_source_url} -> {push_url}")
     return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-logger = logging.getLogger(__name__)
+class StreamSupervisor:
+    """
+    Autonomous background watchdog that ensures FFmpeg RTSP streaming to MediaMTX
+    stays alive 24/7 without needing container restarts.
+    """
+    def __init__(self):
+        self.process = None
+        self.running = False
+        self.thread = None
+        self.lock = threading.Lock()
+        
+        # State params
+        self.is_enabled = False
+        self.local_rtsp_url = ""
+        self.central_url = ""
+        self.camera_id = ""
+
+    def update_params(self, enabled: bool, local_rtsp_url: str, central_url: str, camera_id: str):
+        with self.lock:
+            url_changed = (self.local_rtsp_url != local_rtsp_url or self.camera_id != camera_id)
+            self.is_enabled = enabled
+            self.local_rtsp_url = local_rtsp_url
+            self.central_url = central_url
+            self.camera_id = camera_id
+            
+            # If URL or Camera ID changed, restart FFmpeg immediately
+            if url_changed and self.process:
+                logger.info("[StreamSupervisor] Config changed, terminating existing FFmpeg process.")
+                try:
+                    self.process.terminate()
+                    self.process.wait(timeout=2)
+                except Exception:
+                    pass
+                self.process = None
+
+    def start(self):
+        self.running = True
+        self.thread = threading.Thread(target=self._run, daemon=True, name="StreamSupervisor")
+        self.thread.start()
+        logger.info("[StreamSupervisor] Background FFmpeg watchdog active.")
+
+    def _run(self):
+        while self.running:
+            try:
+                with self.lock:
+                    enabled = self.is_enabled
+                    local_rtsp = self.local_rtsp_url
+                    central_url = self.central_url
+                    cam_id = self.camera_id
+
+                if not config.stream_push_enabled or not enabled or not local_rtsp or not cam_id:
+                    if self.process:
+                        logger.info("[StreamSupervisor] Stream push disabled or camera unready, stopping FFmpeg.")
+                        try:
+                            self.process.terminate()
+                            self.process.wait(timeout=2)
+                        except Exception:
+                            pass
+                        self.process = None
+                    time.sleep(2)
+                    continue
+
+                if self.process is None or self.process.poll() is not None:
+                    if self.process is not None:
+                        err_msg = ""
+                        try:
+                            if self.process.stderr:
+                                err_msg = self.process.stderr.read().decode('utf-8', errors='ignore').strip()
+                        except Exception:
+                            pass
+                        logger.warning(f"[StreamSupervisor] FFmpeg exited (code {self.process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Auto-restarting in 2s...")
+                        time.sleep(2)
+                    
+                    if self.running:
+                        self.process = start_ffmpeg_push(local_rtsp, central_url, cam_id)
+
+                time.sleep(2)
+            except Exception as e:
+                logger.error(f"[StreamSupervisor] Watchdog error: {e}")
+                time.sleep(3)
+
+    def stop(self):
+        self.running = False
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=3)
+            except Exception:
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
+            self.process = None
+        logger.info("[StreamSupervisor] Watchdog stopped.")
 
 def fetch_backend_config(current_etag=None):
     """
@@ -76,28 +172,30 @@ def fetch_backend_config(current_etag=None):
 def main():
     logger.info("Starting Camera Agent...")
     
-    # 1. Start Health Reporter (It hits /api/v1/camera-agent/heartbeat in background)
+    # 1. Start Health Reporter (hits /api/v1/camera-agent/heartbeat in background)
     health_reporter = HealthReporter()
     health_reporter.start()
     
-    # We will instantiate these when we have the config
+    # 2. Start Autonomous FFmpeg Stream Supervisor
+    stream_supervisor = StreamSupervisor()
+    stream_supervisor.start()
+
     detector = None
     uploader = BackendUploader()
     capture = None
-    ffmpeg_process = None
     
     current_etag = None
     current_fps = 1
     is_enabled = False
+    active_rtsp_url = ""
+    active_camera_id = ""
     
     def signal_handler(sig, frame):
         logger.info("Shutting down Camera Agent...")
         health_reporter.stop()
+        stream_supervisor.stop()
         if capture:
             capture.release()
-        if ffmpeg_process:
-            ffmpeg_process.terminate()
-            ffmpeg_process.wait()
         sys.exit(0)
         
     signal.signal(signal.SIGINT, signal_handler)
@@ -105,7 +203,7 @@ def main():
 
     try:
         while True:
-            # Poll config
+            # Poll config from backend
             backend_config, current_etag = fetch_backend_config(current_etag)
             
             if backend_config:
@@ -120,68 +218,48 @@ def main():
                         min_confidence=backend_config.get("modelParams", {}).get("threshold", 0.5)
                     )
                 
-                # Re-initialize capture if URL changes or started
                 credentials = backend_config.get("credentials", {})
                 
-                # Gunakan RTSP lokal jika diatur, jika tidak ikuti URL dari Backend
+                # Determine RTSP URL (local override has priority)
                 rtsp_url = config.rtsp_url
-                
                 if not rtsp_url:
                     stream_url = credentials.get("streamUrl")
                     if stream_url:
-                        # Construct URL with credentials
-                        from urllib.parse import urlparse
                         parsed = urlparse(stream_url)
                         netloc = parsed.netloc
-                        
                         if credentials.get('username') and credentials.get('password'):
-                            # Remove existing auth if present in streamUrl string
                             if '@' in netloc:
                                 netloc = netloc.split('@')[1]
                             import urllib.parse
                             safe_pass = urllib.parse.quote(credentials['password'])
                             netloc = f"{credentials['username']}:{safe_pass}@{netloc}"
-                            
                         rtsp_url = parsed._replace(netloc=netloc).geturl()
                         
-                        # [WORKAROUND] Route through MediaMTX Proxy for Stream 1
-                        # MediaMTX already holds the physical Stream 1 connection.
                         camera_id = backend_config.get("cameraId")
                         if camera_id:
                             rtsp_url = f"rtsp://mediamtx:8554/{camera_id}"
-                            logger.info(f"Routing RTSP through MediaMTX Proxy: {rtsp_url}")
-                else:
-                    logger.info(f"Using local Edge RTSP_URL override: {rtsp_url}")
-                    
-                    if capture:
-                        current_rtsp = getattr(capture, 'rtsp_url', None)
-                        if current_rtsp != rtsp_url:
-                            capture.release()
-                            capture = None
-                            if ffmpeg_process:
-                                ffmpeg_process.terminate()
-                                ffmpeg_process = None
+                
+                active_rtsp_url = rtsp_url
+                active_camera_id = (backend_config.get("cameraId") if backend_config else None) or config.camera_id
+                
+                if capture:
+                    current_rtsp = getattr(capture, 'rtsp_url', None)
+                    if current_rtsp != active_rtsp_url:
+                        capture.release()
+                        capture = None
 
-                    if is_enabled:
-                        if not capture:
-                            # Force capture to run at 5 FPS for smooth tracking overlay
-                            capture = RTSPCapture(rtsp_url=rtsp_url, fps=5)
-                            capture.connect()
-                            logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
-                        
-                        target_cam_id = (backend_config.get("cameraId") if backend_config else None) or config.camera_id
-                        if config.stream_push_enabled and target_cam_id:
-                            if ffmpeg_process is None:
-                                ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, target_cam_id)
-                            elif ffmpeg_process.poll() is not None:
-                                err_msg = ""
-                                try:
-                                    if ffmpeg_process.stderr:
-                                        err_msg = ffmpeg_process.stderr.read().decode('utf-8', errors='ignore').strip()
-                                except Exception:
-                                    pass
-                                logger.warning(f"FFmpeg push process exited (code {ffmpeg_process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Restarting...")
-                                ffmpeg_process = start_ffmpeg_push(rtsp_url, config.backend_url, target_cam_id)
+                if is_enabled and not capture and active_rtsp_url:
+                    capture = RTSPCapture(rtsp_url=active_rtsp_url, fps=5)
+                    capture.connect()
+                    logger.info(f"Connected to RTSP stream at 5 FPS (Tracking), ML Inference throttled to {current_fps} FPS")
+
+                # Update stream supervisor with latest settings
+                stream_supervisor.update_params(
+                    enabled=is_enabled,
+                    local_rtsp_url=active_rtsp_url,
+                    central_url=config.backend_url,
+                    camera_id=active_camera_id
+                )
 
             if not is_enabled or not capture:
                 time.sleep(5)
@@ -201,18 +279,15 @@ def main():
                 # Detect faces and extract embeddings
                 faces, thumb_bytes, dims = detector.process_frame(frame)
                 
-                # --- LIVE TRACKING (Pendekatan B) ---
-                # Upload bounding boxes immediately at 5 FPS to power the UI Canvas overlay
+                # --- LIVE TRACKING (Canvas Bounding Box) ---
                 bboxes = [[int(f.bbox.x), int(f.bbox.y), int(f.bbox.w), int(f.bbox.h), round(float(f.confidence), 2)] for f in faces]
                 if len(bboxes) > 0:
                     uploader.upload_live_tracking(bboxes, timestamp, frame.shape[1], frame.shape[0])
                 
                 # --- ML INFERENCE (Throttled) ---
-                # Only upload full frames to Backend ML (InceptionResnetV1) at the configured sampleFps (1 FPS)
                 if time.time() - last_ml_upload_time >= (1.0 / current_fps):
                     last_ml_upload_time = time.time()
                     
-                    # [DEBUG] Simpan 1 frame setiap 5 detik
                     if int(time.time()) % 5 == 0:
                         preview_frame = frame
                         if config.face_box_overlay_enabled:
@@ -239,9 +314,7 @@ def main():
     finally:
         if capture:
             capture.release()
-        if ffmpeg_process:
-            ffmpeg_process.terminate()
-            ffmpeg_process.wait()
+        stream_supervisor.stop()
         health_reporter.stop()
 
 if __name__ == "__main__":
