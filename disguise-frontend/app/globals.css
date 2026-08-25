@@ -81,10 +81,12 @@
   --space-3xl: 96px;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 
 html {

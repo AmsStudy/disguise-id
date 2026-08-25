@@ -349,7 +349,7 @@ export default function MonitorPage() {
         <div className="flex-1 flex flex-col min-w-0">
           <GlassCard className="flex-1 flex flex-col relative overflow-hidden group !p-0 border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.3)] bg-black/40">
             {/* Feed Header */}
-            <div className="w-full shrink-0 px-6 py-4 bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-4 z-10 backdrop-blur-md">
+            <div className="w-full shrink-0 px-6 py-5 sm:py-6 bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-4 z-10 backdrop-blur-md">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
                   <h2 className="font-orbitron text-2xl font-bold text-white drop-shadow-lg truncate tracking-wide">
@@ -357,10 +357,10 @@ export default function MonitorPage() {
                   </h2>
                   {selected && <StatusDot status={selected.status} showLabel />}
                 </div>
-                
+
                 {/* Location and Quick Copy Toolbar */}
                 {selected && (
-                  <div className="flex flex-wrap items-center gap-3 mt-2">
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
                     <span className="text-[#00E5FF] text-xs font-mono tracking-wider opacity-90 flex items-center gap-1">
                       📍 {selected.location}
                     </span>
@@ -396,7 +396,7 @@ export default function MonitorPage() {
                   {/* Button: Kredensial & API Key Modal */}
                   <button
                     onClick={() => setIsCredentialsModalOpen(true)}
-                    className="h-9 px-3 rounded-lg bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 hover:from-[#00E5FF]/30 hover:to-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] hover:text-white transition-all flex items-center gap-2 text-xs font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]"
+                    className="h-9 px-4 rounded-lg bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 hover:from-[#00E5FF]/30 hover:to-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] hover:text-white transition-all flex items-center gap-2 text-xs font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)] whitespace-nowrap"
                     title="Salin ID & API Key Kamera"
                   >
                     <FontAwesomeIcon icon={faKey} />
