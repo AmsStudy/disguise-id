@@ -66,7 +66,7 @@ export const useAuthStore = create<AuthStore>()(
       logout: () => {
         document.cookie = 'auth-token=; path=/; max-age=0';
         set({ user: null, token: null });
-        window.location.href = '/login';
+        window.location.href = '/';
       },
       setUser: (user) => set({ user }),
       setToken: (token) => set({ token }),
