@@ -56,6 +56,7 @@ export const cameraApi = {
   testConnection: (id: string) => api.post(`/cameras/${id}/test-connection`),
   preview: (id: string) => api.get(`/cameras/${id}/preview`, { responseType: 'blob' }),
   getHealth: (id: string) => api.get(`/cameras/${id}`),
+  regenerateKey: (id: string) => api.post(`/cameras/${id}/regenerate-key`),
 };
 
 // Alerts

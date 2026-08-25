@@ -12,7 +12,8 @@ class HealthReporter:
         self.backend_url = config.backend_url.rstrip('/')
         self.endpoint = f"{self.backend_url}/api/v1/camera-agent/heartbeat"
         self.headers = {
-            "X-Api-Key": config.api_key
+            "X-Api-Key": config.api_key,
+            "X-Camera-Id": config.camera_id
         }
         self.thread = None
         self.running = False
@@ -24,7 +25,7 @@ class HealthReporter:
                 response = requests.post(
                     self.endpoint,
                     headers=self.headers,
-                    json={"status": "online"},
+                    json={"status": "online", "camera_id": config.camera_id},
                     timeout=5.0
                 )
                 response.raise_for_status()

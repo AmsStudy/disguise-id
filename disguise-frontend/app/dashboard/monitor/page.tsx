@@ -3,7 +3,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faExpand, faVideo, faSatelliteDish, faWrench, faXmark, faPen, faTrash, faInfoCircle, faCamera, faRotateRight, faServer } from '@fortawesome/free-solid-svg-icons';
+import {
+  faPlus,
+  faExpand,
+  faVideo,
+  faSatelliteDish,
+  faWrench,
+  faXmark,
+  faPen,
+  faTrash,
+  faInfoCircle,
+  faCamera,
+  faRotateRight,
+  faServer,
+  faKey,
+  faCopy,
+  faCheck,
+  faEye,
+  faEyeSlash,
+  faCode,
+  faTerminal,
+  faShieldHalved
+} from '@fortawesome/free-solid-svg-icons';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { Badge } from '@/components/ui/Badge';
@@ -12,6 +33,8 @@ import { Input } from '@/components/ui/Input';
 import { cameraApi, systemApi } from '@/services/api';
 import type { Camera } from '@/types';
 import LiveCamera from '@/components/LiveCamera';
+
+const DEFAULT_IOT_KEY = 'disguise-iot-secret-key-2026';
 
 export default function MonitorPage() {
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -27,8 +50,15 @@ export default function MonitorPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [healthData, setHealthData] = useState<any>(null);
   const [systemHealth, setSystemHealth] = useState<{ available: boolean; reason: string } | null>(null);
-  const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string, key: string } | null>(null);
+  const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; key: string } | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+
+  // State untuk Modal Kredensial & Copy API Key
+  const [isCredentialsModalOpen, setIsCredentialsModalOpen] = useState(false);
+  const [currentCameraApiKey, setCurrentCameraApiKey] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [locationName, setLocationName] = useState('');
@@ -43,6 +73,33 @@ export default function MonitorPage() {
     () => cameras.find((cam) => cam.id === selectedCameraId) || cameras[0] || null,
     [cameras, selectedCameraId]
   );
+
+  const copyToClipboard = async (text: string, fieldName: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldName);
+      setTimeout(() => {
+        setCopiedField((prev) => (prev === fieldName ? null : prev));
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
+
+  const handleRegenerateApiKey = async (camId: string) => {
+    setGeneratingKey(true);
+    try {
+      const res = await cameraApi.regenerateKey(camId);
+      if (res.data?.data?.api_key) {
+        setCurrentCameraApiKey(res.data.data.api_key);
+        setShowApiKey(true);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error?.message || 'Gagal meregenerasi API Key kamera.');
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
 
   const fetchPreview = async (cam: Camera | null) => {
     if (!cam || cam.status === 'online' || !cam.streamUrl) {
@@ -155,6 +212,7 @@ export default function MonitorPage() {
         const res = await cameraApi.create(payload);
         if (res.data?.data?.api_key) {
           setGeneratedApiKey({ id: res.data.data.id, key: res.data.data.api_key });
+          setCurrentCameraApiKey(res.data.data.api_key);
         }
       }
       resetForm();
@@ -200,19 +258,20 @@ export default function MonitorPage() {
 
   return (
     <div className="flex flex-col gap-6 h-full w-full max-w-[1920px] mx-auto">
-      {/* Refined Header Section: Removed redundant H1 title */}
+      {/* Header Command Center */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 bg-black/20 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#00E5FF]/10 flex items-center justify-center border border-[#00E5FF]/30">
+          <div className="w-10 h-10 rounded-full bg-[#00E5FF]/10 flex items-center justify-center border border-[#00E5FF]/30 shadow-[0_0_15px_rgba(0,229,255,0.2)]">
             <FontAwesomeIcon icon={faServer} className="text-[#00E5FF]" />
           </div>
           <div>
-            <p className="text-[#8BAFC4] text-sm leading-tight">Edge Infrastructure</p>
-            <h2 className="text-[#E8F4F8] font-bold text-lg leading-tight">Command Center</h2>
+            <p className="text-[#8BAFC4] text-sm leading-tight font-mono">Edge Infrastructure</p>
+            <h2 className="text-[#E8F4F8] font-bold text-lg leading-tight font-orbitron">Command Center</h2>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="secondary" size="md" onClick={fetchCameras} disabled={loading} className="bg-black/40 hover:bg-black/60 border-white/10">
+            <FontAwesomeIcon icon={faRotateRight} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Memuat...' : 'Refresh Network'}
           </Button>
           <Button variant="fox" size="md" onClick={() => setIsModalOpen(true)} className="shadow-[0_0_15px_rgba(255,107,53,0.3)]">
@@ -227,51 +286,52 @@ export default function MonitorPage() {
         </div>
       )}
 
-      {/* Main Layout: Fixed Flex heights for true responsiveness */}
+      {/* Main Layout */}
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-[600px] lg:min-h-0">
 
         {/* Sidebar: Camera List */}
         <div className="w-full lg:w-[320px] xl:w-[360px] shrink-0 flex flex-col">
           <GlassCard className="flex-1 flex flex-col overflow-hidden !p-0 border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
-            <div className="bg-gradient-to-b from-white/5 to-transparent border-b border-white/10 px-8 py-6 shrink-0 flex items-center justify-between">
+            <div className="bg-gradient-to-b from-white/5 to-transparent border-b border-white/10 px-6 py-5 shrink-0 flex items-center justify-between">
               <h2 className="font-orbitron text-sm font-bold text-[#00E5FF] tracking-wider uppercase flex items-center">
                 <FontAwesomeIcon icon={faCamera} className="mr-3 text-[#E8F4F8]" /> Daftar Kamera
               </h2>
               <Badge variant="info" className="!bg-[#00E5FF]/10 !text-[#00E5FF] !border-[#00E5FF]/30">{cameras.length}</Badge>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-black/10">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar bg-black/10">
               {cameras.map((cam) => (
                 <motion.div
                   key={cam.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                   onClick={() => setSelectedCameraId(cam.id)}
-                  className={`p-4 rounded-xl cursor-pointer border transition-all duration-200 flex items-center justify-between group relative overflow-hidden ${selected?.id === cam.id
-                    ? 'bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 border-[#00E5FF]/50 shadow-[inset_4px_0_0_#00E5FF]'
-                    : 'bg-black/20 border-white/5 hover:border-[#00E5FF]/30 hover:bg-black/40'
-                    }`}
+                  className={`p-3.5 rounded-xl cursor-pointer border transition-all duration-200 flex items-center justify-between group relative overflow-hidden ${
+                    selected?.id === cam.id
+                      ? 'bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 border-[#00E5FF]/50 shadow-[inset_4px_0_0_#00E5FF]'
+                      : 'bg-black/20 border-white/5 hover:border-[#00E5FF]/30 hover:bg-black/40'
+                  }`}
                 >
-                  {/* Subtle active glow */}
                   {selected?.id === cam.id && (
                     <div className="absolute top-0 right-0 w-32 h-32 bg-[#00E5FF]/10 blur-3xl rounded-full pointer-events-none" />
                   )}
 
-                  <div className="flex items-center gap-4 truncate relative z-10">
-                    <div className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center border ${cam.status === 'online' ? 'bg-[#00E676]/10 border-[#00E676]/30 text-[#00E676]' :
+                  <div className="flex items-center gap-3 truncate relative z-10">
+                    <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center border ${
+                      cam.status === 'online' ? 'bg-[#00E676]/10 border-[#00E676]/30 text-[#00E676]' :
                       cam.status === 'offline' ? 'bg-[#FF3D3D]/10 border-[#FF3D3D]/30 text-[#FF3D3D]' :
-                        'bg-[#FFD600]/10 border-[#FFD600]/30 text-[#FFD600]'
-                      }`}>
-                      <FontAwesomeIcon icon={cam.status === 'online' ? faVideo : cam.status === 'offline' ? faSatelliteDish : faWrench} className="text-[15px]" />
+                      'bg-[#FFD600]/10 border-[#FFD600]/30 text-[#FFD600]'
+                    }`}>
+                      <FontAwesomeIcon icon={cam.status === 'online' ? faVideo : cam.status === 'offline' ? faSatelliteDish : faWrench} className="text-sm" />
                     </div>
                     <div className="truncate">
-                      <h3 className="text-[15px] font-semibold text-[#E8F4F8] truncate font-inter">{cam.name}</h3>
-                      <p className="text-xs text-[#8BAFC4] truncate mt-1 flex items-center gap-1.5">
+                      <h3 className="text-sm font-semibold text-[#E8F4F8] truncate font-inter">{cam.name}</h3>
+                      <p className="text-xs text-[#8BAFC4] truncate mt-0.5 flex items-center gap-1.5 font-mono">
                         <StatusDot status={cam.status} /> {cam.location}
                       </p>
                     </div>
                   </div>
                   {cam.alertCount ? (
-                    <Badge variant="high" className="!px-2 !py-1 !text-xs relative z-10">{cam.alertCount}</Badge>
+                    <Badge variant="high" className="!px-2 !py-0.5 !text-xs relative z-10">{cam.alertCount}</Badge>
                   ) : null}
                 </motion.div>
               ))}
@@ -288,8 +348,8 @@ export default function MonitorPage() {
         {/* Live Feed Area */}
         <div className="flex-1 flex flex-col min-w-0">
           <GlassCard className="flex-1 flex flex-col relative overflow-hidden group !p-0 border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.3)] bg-black/40">
-            {/* Feed Header - Transparent to blend with GlassCard */}
-            <div className="w-full shrink-0 px-6 py-5 bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-4 z-10 backdrop-blur-md">
+            {/* Feed Header */}
+            <div className="w-full shrink-0 px-6 py-4 bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-4 z-10 backdrop-blur-md">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
                   <h2 className="font-orbitron text-2xl font-bold text-white drop-shadow-lg truncate tracking-wide">
@@ -297,26 +357,77 @@ export default function MonitorPage() {
                   </h2>
                   {selected && <StatusDot status={selected.status} showLabel />}
                 </div>
-                <p className="text-[#00E5FF] text-sm mt-1 font-mono truncate tracking-wider opacity-80">{selected?.location ?? ''}</p>
+                
+                {/* Location and Quick Copy Toolbar */}
+                {selected && (
+                  <div className="flex flex-wrap items-center gap-3 mt-2">
+                    <span className="text-[#00E5FF] text-xs font-mono tracking-wider opacity-90 flex items-center gap-1">
+                      📍 {selected.location}
+                    </span>
+
+                    <span className="text-white/20">•</span>
+
+                    {/* Quick Copy Camera ID */}
+                    <button
+                      onClick={() => copyToClipboard(selected.id, 'quick-id')}
+                      className="group/id flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 text-[#00E5FF] text-[11px] font-mono transition-all"
+                      title="Klik untuk menyalin Camera ID"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'quick-id' ? faCheck : faCopy} className={copiedField === 'quick-id' ? 'text-[#00E676]' : ''} />
+                      <span>ID: {selected.id.split('-')[0]}...</span>
+                      {copiedField === 'quick-id' && <span className="text-[#00E676] font-bold text-[10px] ml-1">Tersalin!</span>}
+                    </button>
+
+                    {/* Quick Button: Kredensial & Edge Config */}
+                    <button
+                      onClick={() => setIsCredentialsModalOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#FFD600]/10 hover:bg-[#FFD600]/20 border border-[#FFD600]/30 text-[#FFD600] text-[11px] font-semibold transition-all shadow-[0_0_10px_rgba(255,214,0,0.15)]"
+                      title="Buka detail API Key dan Kredensial Kamera"
+                    >
+                      <FontAwesomeIcon icon={faKey} />
+                      <span>API Key & Kredensial</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {selected && (
-                <div className="flex flex-wrap gap-2 shrink-0 bg-black/30 p-1.5 rounded-xl border border-white/10">
+                <div className="flex flex-wrap items-center gap-2 shrink-0 bg-black/40 p-1.5 rounded-xl border border-white/10">
+                  {/* Button: Kredensial & API Key Modal */}
+                  <button
+                    onClick={() => setIsCredentialsModalOpen(true)}
+                    className="h-9 px-3 rounded-lg bg-gradient-to-r from-[#00E5FF]/20 to-[#00E5FF]/5 hover:from-[#00E5FF]/30 hover:to-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] hover:text-white transition-all flex items-center gap-2 text-xs font-semibold shadow-[0_0_12px_rgba(0,229,255,0.2)]"
+                    title="Salin ID & API Key Kamera"
+                  >
+                    <FontAwesomeIcon icon={faKey} />
+                    <span className="hidden sm:inline">Kredensial</span>
+                  </button>
+
+                  <div className="w-px h-5 bg-white/10 my-auto" />
+
+                  {/* Telemetry Button */}
                   <button
                     onClick={() => setShowInfoPanel(!showInfoPanel)}
-                    className={`w-10 h-10 rounded-lg backdrop-blur-md transition-all flex items-center justify-center ${showInfoPanel ? 'bg-[#00E5FF] text-black shadow-[0_0_15px_rgba(0,229,255,0.5)]' : 'text-[#8BAFC4] hover:bg-white/10 hover:text-white'}`}
-                    title="Telemetri"
+                    className={`w-9 h-9 rounded-lg backdrop-blur-md transition-all flex items-center justify-center ${
+                      showInfoPanel
+                        ? 'bg-[#00E5FF] text-black shadow-[0_0_15px_rgba(0,229,255,0.5)]'
+                        : 'text-[#8BAFC4] hover:bg-white/10 hover:text-white'
+                    }`}
+                    title="Telemetri Kamera"
                   >
                     <FontAwesomeIcon icon={faInfoCircle} />
                   </button>
-                  <div className="w-px h-6 bg-white/10 my-auto mx-1" />
+
+                  {/* Edit Camera */}
                   <button
                     onClick={() => handleEditClick(selected)}
-                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#FFD600]/20 hover:text-[#FFD600] transition-colors flex items-center justify-center"
+                    className="w-9 h-9 rounded-lg text-[#8BAFC4] hover:bg-[#FFD600]/20 hover:text-[#FFD600] transition-colors flex items-center justify-center"
                     title="Edit Kamera"
                   >
                     <FontAwesomeIcon icon={faPen} />
                   </button>
+
+                  {/* Test Connection */}
                   <button
                     onClick={async () => {
                       setTestingConnection(true);
@@ -333,21 +444,26 @@ export default function MonitorPage() {
                       }
                     }}
                     disabled={testingConnection}
-                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#00E5FF]/20 hover:text-[#00E5FF] transition-colors disabled:opacity-50 flex items-center justify-center"
+                    className="w-9 h-9 rounded-lg text-[#8BAFC4] hover:bg-[#00E5FF]/20 hover:text-[#00E5FF] transition-colors disabled:opacity-50 flex items-center justify-center"
                     title="Test Connection"
                   >
-                    <FontAwesomeIcon icon={testingConnection ? faRotateRight : faSatelliteDish} className={testingConnection ? "animate-spin" : ""} />
+                    <FontAwesomeIcon icon={testingConnection ? faRotateRight : faSatelliteDish} className={testingConnection ? 'animate-spin' : ''} />
                   </button>
+
+                  {/* Delete Camera */}
                   <button
                     onClick={() => handleDeleteClick(selected)}
-                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-[#FF3D3D]/20 hover:text-[#FF3D3D] transition-colors flex items-center justify-center"
+                    className="w-9 h-9 rounded-lg text-[#8BAFC4] hover:bg-[#FF3D3D]/20 hover:text-[#FF3D3D] transition-colors flex items-center justify-center"
                     title="Hapus Kamera"
                   >
                     <FontAwesomeIcon icon={faTrash} />
                   </button>
-                  <div className="w-px h-6 bg-white/10 my-auto mx-1" />
+
+                  <div className="w-px h-5 bg-white/10 my-auto" />
+
+                  {/* Fullscreen */}
                   <button
-                    className="w-10 h-10 rounded-lg text-[#8BAFC4] hover:bg-white/10 hover:text-white transition-colors flex items-center justify-center"
+                    className="w-9 h-9 rounded-lg text-[#8BAFC4] hover:bg-white/10 hover:text-white transition-colors flex items-center justify-center"
                     title="Fullscreen"
                   >
                     <FontAwesomeIcon icon={faExpand} />
@@ -356,9 +472,8 @@ export default function MonitorPage() {
               )}
             </div>
 
-            {/* Video Container - Pure black for video player contrast */}
+            {/* Video Container */}
             <div className="flex-1 bg-black flex items-center justify-center relative w-full h-full min-h-[300px]">
-              {/* Optional: Subtle grid background when empty */}
               <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-[0.02] pointer-events-none" />
 
               {systemHealth?.available === false ? (
@@ -375,39 +490,79 @@ export default function MonitorPage() {
                 <img src={previewUrl} alt="Preview" className="w-full h-full object-contain relative z-10" />
               ) : (
                 <div className="flex flex-col items-center p-6 text-center z-10">
-                  <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/10">
-                    <FontAwesomeIcon icon={faVideo} className="text-4xl text-white/20" />
+                  <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-5 border border-white/10">
+                    <FontAwesomeIcon icon={faVideo} className="text-3xl text-white/20" />
                   </div>
-                  <div className="text-[#8BAFC4] text-base font-inter mb-2">
-                    {loadingPreview ? 'Menyambungkan ke stream...' : (selected ? 'Perangkat sedang offline' : 'Silakan pilih kamera')}
+                  <div className="text-[#8BAFC4] text-sm font-inter mb-3">
+                    {loadingPreview ? 'Menyambungkan ke stream...' : (selected ? 'Perangkat sedang offline / menunggu feed' : 'Silakan pilih kamera')}
                   </div>
                   {selected && (
-                    <div className="text-[11px] text-[#00CFE8] font-mono bg-[#00CFE8]/10 px-4 py-2 rounded-lg border border-[#00CFE8]/20 inline-block tracking-wider">
-                      AGENT ID: {selected.id.split('-')[0]}
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        onClick={() => copyToClipboard(selected.id, 'empty-id')}
+                        className="text-[11px] text-[#00CFE8] font-mono bg-[#00CFE8]/10 hover:bg-[#00CFE8]/20 px-3.5 py-1.5 rounded-lg border border-[#00CFE8]/20 flex items-center gap-1.5 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={copiedField === 'empty-id' ? faCheck : faCopy} />
+                        <span>CAMERA ID: {selected.id}</span>
+                      </button>
+                      <button
+                        onClick={() => setIsCredentialsModalOpen(true)}
+                        className="text-[11px] text-[#FFD600] font-semibold bg-[#FFD600]/10 hover:bg-[#FFD600]/20 px-3 py-1.5 rounded-lg border border-[#FFD600]/20 flex items-center gap-1.5 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faKey} />
+                        <span>Lihat Kredensial</span>
+                      </button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Info Overlay Panel */}
+              {/* Info / Telemetry Overlay Panel */}
               <AnimatePresence>
                 {showInfoPanel && selected && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 10, x: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 10, x: 10 }}
-                    className="absolute top-4 right-4 w-[340px] bg-[#060D14]/95 backdrop-blur-2xl border border-[#00E5FF]/30 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20"
+                    className="absolute top-4 right-4 w-[360px] bg-[#060D14]/95 backdrop-blur-2xl border border-[#00E5FF]/30 rounded-2xl p-5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-20"
                   >
                     <div className="flex justify-between items-center mb-4 pb-3 border-b border-white/10">
                       <h4 className="text-[13px] font-bold text-[#00E5FF] uppercase tracking-widest flex items-center">
-                        <FontAwesomeIcon icon={faServer} className="mr-2" /> Telemetri Edge
+                        <FontAwesomeIcon icon={faServer} className="mr-2" /> Telemetri & Identitas
                       </h4>
                       <button onClick={() => setShowInfoPanel(false)} className="text-[#8BAFC4] hover:text-white bg-white/5 rounded-full w-7 h-7 flex items-center justify-center transition-colors">
                         <FontAwesomeIcon icon={faXmark} />
                       </button>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-3.5">
+                      {/* Camera ID copy in Telemetry */}
+                      <div className="bg-black/60 p-3 rounded-xl border border-white/10">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] text-[#8BAFC4] font-bold uppercase tracking-wider font-mono">Camera ID</span>
+                          <button
+                            onClick={() => copyToClipboard(selected.id, 'panel-id')}
+                            className="text-[10px] text-[#00E5FF] hover:underline flex items-center gap-1"
+                          >
+                            <FontAwesomeIcon icon={copiedField === 'panel-id' ? faCheck : faCopy} className={copiedField === 'panel-id' ? 'text-[#00E676]' : ''} />
+                            {copiedField === 'panel-id' ? 'Tersalin' : 'Salin ID'}
+                          </button>
+                        </div>
+                        <div className="text-xs text-[#E8F4F8] font-mono break-all select-all">{selected.id}</div>
+                      </div>
+
+                      {/* Quick Open Credentials Modal */}
+                      <button
+                        onClick={() => {
+                          setShowInfoPanel(false);
+                          setIsCredentialsModalOpen(true);
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/30 text-[#00E5FF] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faKey} />
+                        <span>Buka Detail API Key & Konfigurasi Edge</span>
+                      </button>
+
                       <div>
                         <div className="text-[11px] text-[#8BAFC4] font-semibold mb-1">Stream URL</div>
                         <div className="text-xs text-[#E8F4F8] font-mono break-all bg-black/50 p-2.5 rounded-lg border border-white/5">{selected.streamUrl || 'Tidak ada URL'}</div>
@@ -453,7 +608,174 @@ export default function MonitorPage() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* ========================================================================= */}
+      {/* MODAL 1: KREDENSIAL & API KEY COPY (TAMPILAN LENGKAP & CEPAT)              */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {isCredentialsModalOpen && selected && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#060D14]/90 backdrop-blur-md flex items-center justify-center z-[1100] p-4 sm:p-6"
+            onClick={() => setIsCredentialsModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#0B1726] border border-[#00E5FF]/40 rounded-3xl p-6 sm:p-8 w-full max-w-2xl shadow-[0_0_50px_rgba(0,229,255,0.15)] relative overflow-hidden"
+            >
+              {/* Background ambient glow */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[85%] h-32 bg-[#00E5FF]/15 blur-[70px] pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex items-start justify-between mb-6 relative z-10 border-b border-white/10 pb-5">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-[#00E5FF]/10 border border-[#00E5FF]/30 flex items-center justify-center text-[#00E5FF] text-xl shadow-[0_0_20px_rgba(0,229,255,0.3)]">
+                    <FontAwesomeIcon icon={faKey} />
+                  </div>
+                  <div>
+                    <h2 className="font-orbitron text-xl sm:text-2xl font-bold text-[#E8F4F8] flex items-center gap-2">
+                      Kredensial Edge & API Key
+                    </h2>
+                    <p className="text-[#8BAFC4] text-xs sm:text-sm mt-0.5">
+                      Gunakan kredensial ini untuk menghubungkan <span className="text-[#00E5FF] font-semibold">{selected.name}</span> ke Camera Agent.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCredentialsModalOpen(false)}
+                  className="text-[#8BAFC4] hover:text-white hover:bg-white/10 rounded-full w-9 h-9 flex items-center justify-center transition-colors"
+                >
+                  <FontAwesomeIcon icon={faXmark} className="text-lg" />
+                </button>
+              </div>
+
+              {/* Content Grid */}
+              <div className="space-y-4 relative z-10">
+                {/* 1. Camera ID Box */}
+                <div className="bg-black/60 p-4 rounded-2xl border border-white/10 hover:border-[#00E5FF]/30 transition-all">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[11px] text-[#8BAFC4] font-bold uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <FontAwesomeIcon icon={faShieldHalved} className="text-[#00E5FF]" /> CAMERA ID (UUID)
+                    </span>
+                    <span className="text-[10px] text-white/40 font-mono">Unique Identifier</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-black/80 text-[#00E5FF] font-mono text-xs sm:text-sm p-3 rounded-xl border border-white/10 select-all overflow-x-auto truncate">
+                      {selected.id}
+                    </div>
+                    <Button
+                      variant="fox"
+                      size="sm"
+                      onClick={() => copyToClipboard(selected.id, 'modal-cam-id')}
+                      className="shrink-0 !h-11 px-4 !text-xs font-semibold shadow-[0_0_15px_rgba(255,107,53,0.3)]"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'modal-cam-id' ? faCheck : faCopy} className="mr-1.5" />
+                      {copiedField === 'modal-cam-id' ? 'Tersalin!' : 'Salin ID'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 2. API Key Box */}
+                <div className="bg-black/60 p-4 rounded-2xl border border-white/10 hover:border-[#00E5FF]/30 transition-all">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[11px] text-[#8BAFC4] font-bold uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <FontAwesomeIcon icon={faKey} className="text-[#FFD600]" /> CAMERA API KEY
+                    </span>
+                    <span className="text-[10px] text-[#00E676] font-mono">X-Api-Key Header</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-black/80 text-[#00E676] font-mono text-xs sm:text-sm p-3 rounded-xl border border-white/10 select-all overflow-x-auto truncate flex items-center justify-between">
+                      <span>
+                        {showApiKey
+                          ? currentCameraApiKey || DEFAULT_IOT_KEY
+                          : '••••••••••••••••••••••••••••••••••••••••••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="text-[#8BAFC4] hover:text-white ml-2 text-xs"
+                        title={showApiKey ? 'Sembunyikan' : 'Tampilkan'}
+                      >
+                        <FontAwesomeIcon icon={showApiKey ? faEyeSlash : faEye} />
+                      </button>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => copyToClipboard(currentCameraApiKey || DEFAULT_IOT_KEY, 'modal-api-key')}
+                      className="shrink-0 !h-11 px-4 !text-xs font-semibold bg-white/10 hover:bg-white/20 border-white/10 text-white"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'modal-api-key' ? faCheck : faCopy} className="mr-1.5" />
+                      {copiedField === 'modal-api-key' ? 'Tersalin!' : 'Salin Key'}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-white/5 text-[11px]">
+                    <span className="text-white/50">
+                      Gunakan key di atas atau master IoT key: <code className="text-[#00E5FF] bg-black/60 px-1.5 py-0.5 rounded font-mono">{DEFAULT_IOT_KEY}</code>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={generatingKey}
+                      onClick={() => handleRegenerateApiKey(selected.id)}
+                      className="text-[#00E5FF] hover:underline font-medium disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <FontAwesomeIcon icon={faRotateRight} className={generatingKey ? 'animate-spin' : ''} />
+                      <span>{generatingKey ? 'Membuat...' : 'Regenerasi Key'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Ready-to-use .env Config Snippet */}
+                <div className="bg-black/70 p-4 rounded-2xl border border-white/10">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[11px] text-[#8BAFC4] font-bold uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <FontAwesomeIcon icon={faTerminal} className="text-[#00E5FF]" /> Snippet Konfigurasi (camera-agent/.env)
+                    </span>
+                    <button
+                      onClick={() => {
+                        const envSnippet = `BACKEND_URL=http://localhost:3002\nAPI_KEY=${currentCameraApiKey || DEFAULT_IOT_KEY}\nCAMERA_ID=${selected.id}\nCAMERA_NAME="${selected.name}"\nRTSP_URL=/home/ichwal/disguise-id-fix/stream-record/Highlight_Manusia_CCTV.mp4\nSTREAM_PUSH_RTSP_URL=/home/ichwal/disguise-id-fix/stream-record/Highlight_Manusia_CCTV.mp4\nMEDIAMTX_HOST=localhost\nSTREAM_PUSH_ENABLED=true`;
+                        copyToClipboard(envSnippet, 'env-snippet');
+                      }}
+                      className="text-xs text-[#00E5FF] hover:underline font-semibold flex items-center gap-1"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'env-snippet' ? faCheck : faCopy} className={copiedField === 'env-snippet' ? 'text-[#00E676]' : ''} />
+                      {copiedField === 'env-snippet' ? 'Seluruh .env Tersalin!' : 'Salin Seluruh .env'}
+                    </button>
+                  </div>
+                  <pre className="bg-[#050B12] p-3 rounded-xl border border-white/5 text-[11px] font-mono text-[#A5F3FC] overflow-x-auto leading-relaxed select-all">
+{`CAMERA_ID=${selected.id}
+API_KEY=${currentCameraApiKey || DEFAULT_IOT_KEY}
+BACKEND_URL=http://localhost:3002
+RTSP_URL=stream-record/Highlight_Manusia_CCTV.mp4`}
+                  </pre>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex justify-end gap-3 mt-6 pt-5 border-t border-white/10 relative z-10">
+                <Button
+                  variant="fox"
+                  size="md"
+                  onClick={() => setIsCredentialsModalOpen(false)}
+                  className="px-6 shadow-[0_0_15px_rgba(255,107,53,0.3)]"
+                >
+                  Selesai
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: REGISTER / EDIT DEVICE MODAL                                     */}
+      {/* ========================================================================= */}
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
@@ -499,6 +821,7 @@ export default function MonitorPage() {
           </motion.div>
         )}
 
+        {/* MODAL 3: GENERATED API KEY UPON NEW DEVICE REGISTRATION */}
         {generatedApiKey && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -524,16 +847,35 @@ export default function MonitorPage() {
                 <span className="text-[#FF6B35] font-semibold bg-[#FF6B35]/10 px-2 py-1 rounded">Penting:</span> API Key ini hanya ditampilkan satu kali demi keamanan!
               </p>
 
-              <div className="bg-black/50 p-5 rounded-2xl mb-8 border border-white/10 text-left relative z-10 shadow-inner">
-                <div className="mb-5">
-                  <div className="text-[11px] text-[#8BAFC4] mb-1.5 font-bold tracking-widest uppercase">CAMERA_ID</div>
+              <div className="bg-black/50 p-5 rounded-2xl mb-8 border border-white/10 text-left relative z-10 shadow-inner space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] text-[#8BAFC4] font-bold tracking-widest uppercase">CAMERA_ID</span>
+                    <button
+                      onClick={() => copyToClipboard(generatedApiKey.id, 'gen-id')}
+                      className="text-[11px] text-[#00E5FF] hover:underline flex items-center gap-1 font-mono"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'gen-id' ? faCheck : faCopy} />
+                      {copiedField === 'gen-id' ? 'Tersalin' : 'Salin'}
+                    </button>
+                  </div>
                   <div className="text-base text-[#00E5FF] font-mono bg-[#00E5FF]/5 p-3 rounded-lg border border-[#00E5FF]/20 select-all cursor-text">
                     {generatedApiKey.id}
                   </div>
                 </div>
+
                 <div>
-                  <div className="text-[11px] text-[#8BAFC4] mb-1.5 font-bold tracking-widest uppercase">API_KEY</div>
-                  <div className="text-base text-[#00E5FF] font-mono bg-[#00E5FF]/5 p-3 rounded-lg border border-[#00E5FF]/20 select-all cursor-text break-all">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[11px] text-[#8BAFC4] font-bold tracking-widest uppercase">API_KEY</span>
+                    <button
+                      onClick={() => copyToClipboard(generatedApiKey.key, 'gen-key')}
+                      className="text-[11px] text-[#00E676] hover:underline flex items-center gap-1 font-mono"
+                    >
+                      <FontAwesomeIcon icon={copiedField === 'gen-key' ? faCheck : faCopy} />
+                      {copiedField === 'gen-key' ? 'Tersalin' : 'Salin'}
+                    </button>
+                  </div>
+                  <div className="text-base text-[#00E676] font-mono bg-[#00E676]/5 p-3 rounded-lg border border-[#00E676]/20 select-all cursor-text break-all">
                     {generatedApiKey.key}
                   </div>
                 </div>
@@ -549,7 +891,7 @@ export default function MonitorPage() {
         )}
       </AnimatePresence>
 
-      <style>{`
+      <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 229, 255, 0.2); border-radius: 10px; }

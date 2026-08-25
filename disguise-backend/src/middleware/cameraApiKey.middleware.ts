@@ -22,14 +22,20 @@ export const cameraAgentAuth = async (req: Request, res: Response, next: NextFun
     const validIotKey = process.env.IOT_API_KEY || 'disguise-iot-secret-key-2026';
     let camera: any = null;
 
-    if (apiKey === validIotKey && req.body.camera_id) {
-       // Support multi-camera IoT orchestrator (legacy bypass, though we should transition away)
-       // Keeping it for backwards compatibility if needed, but strict mode prefers camera-specific keys.
+    const targetCameraId = (req.body?.camera_id || req.headers['x-camera-id'] || req.query?.camera_id) as string;
+
+    if (apiKey === validIotKey) {
        const prisma = require('../config/database').default;
-       camera = await prisma.cctvSource.findFirst({
-         where: { id: req.body.camera_id, deletedAt: null },
-         select: { id: true, organizationId: true, threshold: true, modelVersion: true, status: true }
-       });
+       if (targetCameraId) {
+         camera = await prisma.cctvSource.findFirst({
+           where: { id: targetCameraId, deletedAt: null },
+         });
+       } else {
+         camera = await prisma.cctvSource.findFirst({
+           where: { deletedAt: null },
+           orderBy: { createdAt: 'desc' }
+         });
+       }
     } else {
        camera = await camerasService.findByApiKey(apiKey);
     }

@@ -3,11 +3,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
     container_name: disguise-camera-agent-edge
     restart: unless-stopped
     env_file:
       - .env
     volumes:
       - .:/app
+      - ../stream-record:/stream-record
+      - insightface_models:/root/.insightface
     network_mode: "host"
+
+volumes:
+  insightface_models:

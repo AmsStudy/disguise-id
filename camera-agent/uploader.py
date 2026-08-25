@@ -12,7 +12,8 @@ class BackendUploader:
         self.backend_url = config.backend_url.rstrip('/')
         self.endpoint = f"{self.backend_url}/api/v1/inference/frame"
         self.headers = {
-            "X-Api-Key": config.api_key
+            "X-Api-Key": config.api_key,
+            "X-Camera-Id": config.camera_id
         }
         
         # Bounded queues to prevent memory leaks if backend is slow/offline
@@ -113,6 +114,7 @@ class BackendUploader:
         Pushes live tracking data to the non-blocking bounded queue.
         """
         data = {
+            "camera_id": config.camera_id,
             "timestamp": timestamp,
             "bboxes": bboxes,
             "frame_w": frame_w,

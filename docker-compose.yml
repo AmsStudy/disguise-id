@@ -75,6 +75,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8001"
+      - "8001:8001"
     environment:
       - HOST=0.0.0.0
       - PORT=8001
@@ -172,6 +173,29 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
+
+  # ─── 6. CAMERA AGENT (Edge Simulation) ──────────────────────
+  camera-agent:
+    build:
+      context: ./camera-agent
+      dockerfile: Dockerfile
+    container_name: disguise-camera-agent-edge
+    restart: unless-stopped
+    environment:
+      - BACKEND_URL=http://localhost:3002
+      - API_KEY=disguise-iot-secret-key-2026
+      - CAMERA_ID=3cebf033-2d73-4d28-b280-d434307d1f03
+      - CAMERA_NAME=Working Space
+      - RTSP_URL=/stream-record/Highlight_Manusia_CCTV.mp4
+      - STREAM_PUSH_RTSP_URL=/stream-record/Highlight_Manusia_CCTV.mp4
+      - MEDIAMTX_HOST=localhost
+      - STREAM_PUSH_ENABLED=true
+      - DET_SIZE=640
+      - MIN_CONFIDENCE=0.5
+    volumes:
+      - ./stream-record:/stream-record
+      - ./camera-agent:/app
+    network_mode: "host"
 
 volumes:
   postgres_data:

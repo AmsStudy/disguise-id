@@ -23,4 +23,5 @@ authInternalUsers:
       - action: metrics
       - action: pprof
 paths:
-  all:
+  "3cebf033-2d73-4d28-b280-d434307d1f03":
+    source: publisher
