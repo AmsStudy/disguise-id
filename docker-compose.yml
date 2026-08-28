@@ -117,6 +117,8 @@ services:
       - ML_SERVICE_V2_ENABLED=true
       - ML_SERVICE_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
       - ML_SERVICE_V2_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
+      - IOT_API_KEY=${IOT_API_KEY:-disguise-iot-secret-key-2026}
+      - RATE_LIMIT_MAX_REQUESTS=10000
       - RATE_LIMIT_CAMERA_MAX=10000
       - CAMERA_CREDENTIAL_ENCRYPTION_ENABLED=true
       - CAMERA_CREDENTIAL_KEY_VERSION=v1
@@ -191,7 +193,8 @@ services:
       - MEDIAMTX_HOST=localhost
       - STREAM_PUSH_ENABLED=true
       - DET_SIZE=640
-      - MIN_CONFIDENCE=0.5
+      - MIN_CONFIDENCE=0.30
+      - BLUR_THRESHOLD=15.0
     volumes:
       - ./stream-record:/stream-record
       - ./camera-agent:/app

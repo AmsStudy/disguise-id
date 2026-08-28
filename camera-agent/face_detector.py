@@ -14,9 +14,9 @@ class FaceDetector:
     Does NOT load heavy ArcFace/Recognition models on the edge.
     """
     PAD_RATIO = 0.3
-    MIN_FACE_SIZE = 40
+    MIN_FACE_SIZE = 25
 
-    def __init__(self, det_size=(640, 640), min_confidence=0.5):
+    def __init__(self, det_size=(640, 640), min_confidence=0.30):
         import onnxruntime
         available_providers = onnxruntime.get_available_providers()
 

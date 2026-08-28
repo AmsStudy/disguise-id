@@ -35,6 +35,7 @@ def start_ffmpeg_pipe(width: int, height: int, fps: int, central_url: str, camer
     cmd = [
         "ffmpeg",
         "-y",
+        "-re",
         "-f", "rawvideo",
         "-vcodec", "rawvideo",
         "-pix_fmt", "bgr24",
@@ -120,9 +121,14 @@ def main():
             is_enabled = True
             active_camera_id = config.camera_id
             
+            active_video_url = config.get_rtsp_url()
             if backend_config:
                 is_enabled = backend_config.get("enabled", True)
-                rtsp_url = backend_config.get("credentials", {}).get("streamUrl") or config.rtsp_url
+                backend_stream = backend_config.get("credentials", {}).get("streamUrl")
+                if backend_stream and (backend_stream.startswith("rtsp://") or backend_stream.startswith("http://")):
+                    rtsp_url = backend_stream
+                else:
+                    rtsp_url = active_video_url
                 active_camera_id = backend_config.get("cameraId") or config.camera_id
                 
                 # Update model params if changed
@@ -130,7 +136,7 @@ def main():
                 if "threshold" in model_params:
                     detector.min_confidence = float(model_params["threshold"])
             else:
-                rtsp_url = config.rtsp_url
+                rtsp_url = active_video_url
 
             if not is_enabled or not rtsp_url:
                 if capture:
@@ -146,9 +152,23 @@ def main():
                 time.sleep(5)
                 continue
 
+            # If active video source changed dynamically, reconnect immediately
+            if capture and getattr(capture, 'rtsp_url', None) != rtsp_url:
+                logger.info(f"Video source switched to {rtsp_url}. Reconnecting stream...")
+                capture.release()
+                capture = None
+                if ffmpeg_pipe_proc:
+                    try:
+                        ffmpeg_pipe_proc.stdin.close()
+                        ffmpeg_pipe_proc.terminate()
+                    except Exception:
+                        pass
+                    ffmpeg_pipe_proc = None
+
             if capture is None:
                 capture = RTSPCapture(rtsp_url=rtsp_url, fps=stream_fps)
                 capture.connect()
+                stream_fps = int(round(capture.native_fps))
                 logger.info(f"Connected to video source at {stream_fps} FPS (Live Edge Rendering & RetinaFace Cropping)")
 
             # Read frames for the next 15 seconds, then re-poll config

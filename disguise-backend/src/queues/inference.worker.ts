@@ -209,12 +209,12 @@ export const inferenceWorkerProcessor = async (job: Job<InferenceJobData>): Prom
         marginPct = margin;
 
         // Step 1: Initial tier classification
-        // Euclidean distance thresholds derived from ArcFace Cosine Similarity:
-        // Cosine Sim >= 0.380 (HIGH) -> L2 Dist <= 1.113
-        // Cosine Sim >= 0.288 (POSSIBLE) -> L2 Dist <= 1.193
-        if (dist1 <= 1.113) {
+        // Euclidean distance thresholds derived from ArcFace Cosine Similarity & Calibration:
+        // dist <= 1.15 -> TINGGI (Score >= 75%)
+        // dist <= 1.30 -> SEDANG (Score >= 55%-60%, langsung diambil dan memicu alert)
+        if (dist1 <= 1.15) {
           tier = 'TINGGI';
-        } else if (dist1 <= 1.193) {
+        } else if (dist1 <= 1.30) {
           tier = 'SEDANG';
         } else {
           tier = 'RENDAH';

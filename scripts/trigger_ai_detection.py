@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
 """
 =============================================================================
-DISGUISE-ID — AI DETECTION & ALERT EVENT TRIGGER
+DISGUISE-ID — AI DETECTION & REALTIME ALERT TRIGGER (Aan, Ichwal, Raihan, etc.)
 =============================================================================
-Script ini mengirimkan trigger deteksi wajah DPO ke backend agar muncul
-notifikasi Alert, skor kemiripan, dan Bounding Box di layar Monitor Web & Mobile.
+Usage:
+    python3 scripts/trigger_ai_detection.py --person "Aan" --score 0.87
+    python3 scripts/trigger_ai_detection.py --person "Ichwal" --score 0.96
 =============================================================================
 """
 
 import os
 import sys
-import time
-import uuid
 import json
 import argparse
-import subprocess
 import urllib.request
-from datetime import datetime
+import urllib.error
 
-# Warna terminal
 CYAN = '\033[96m'
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
@@ -26,36 +23,20 @@ RED = '\033[91m'
 BOLD = '\033[1m'
 RESET = '\033[0m'
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CAMERA_ID = "3cebf033-2d73-4d28-b280-d434307d1f03"
 DEFAULT_BACKEND_URL = "http://localhost:3002"
 DEFAULT_IOT_KEY = "disguise-iot-secret-key-2026"
+DEFAULT_CROP_URL = "http://localhost:9000/cctv-frames/frames/2026/08/27/3bfffb63-12bf-42e1-b523-079a89a375f3.jpg"
 
-def trigger_mock_detection(person_name: str = "Ichwal", similarity: float = 0.914, camera_id: str = DEFAULT_CAMERA_ID):
-    """
-    Mengirimkan event deteksi langsung via backend API / WebSocket untuk demonstrasi real-time.
-    """
-    print(f"\n{CYAN}{BOLD}[AI TRIGGER] Mengirimkan deteksi DPO: {person_name} ({similarity*100:.1f}% Match)...{RESET}")
+def trigger_detection(person_name: str = "Aan", score: float = 0.87, camera_id: str = DEFAULT_CAMERA_ID, crop_url: str = DEFAULT_CROP_URL):
+    print(f"\n{CYAN}{BOLD}🚀 [AI TRIGGER] Mengirimkan deteksi DPO: {person_name} (Skor Kemiripan: {score*100:.1f}%)...{RESET}")
+    print(f"{CYAN}   - Foto Pembanding Crop: {crop_url}{RESET}")
 
-    # Buat payload tracking box untuk overlay di monitor
-    timestamp = datetime.now().isoformat()
-    capture_id = str(uuid.uuid4())
-
-    # Kirim event bounding box ke camera tracking socket
-    url = f"{DEFAULT_BACKEND_URL}/api/v1/camera-agent/tracking"
+    url = f"{DEFAULT_BACKEND_URL}/api/v1/camera-agent/trigger-alert"
     payload = {
-        "camera_id": camera_id,
-        "capture_id": capture_id,
-        "timestamp": timestamp,
-        "faces": [
-            {
-                "bbox": {"x": 840, "y": 360, "w": 240, "h": 280},
-                "confidence": 0.985,
-                "is_match": True,
-                "person_name": person_name,
-                "similarity": similarity
-            }
-        ]
+        "person_name": person_name,
+        "similarity": score,
+        "face_crop_url": crop_url
     }
 
     try:
@@ -64,22 +45,34 @@ def trigger_mock_detection(person_name: str = "Ichwal", similarity: float = 0.91
             "Content-Type": "application/json",
             "X-Api-Key": DEFAULT_IOT_KEY
         })
-        with urllib.request.urlopen(req, timeout=3.0) as res:
-            if res.status in (200, 201):
-                print(f"{GREEN}{BOLD}[✓] Bounding Box & Target Tracker berhasil ditayangkan di monitor!{RESET}")
-    except Exception as e:
-        print(f"{YELLOW}[Catatan] Kirim tracking: {e} (Pastikan backend di port 3002 sedang berjalan){RESET}")
+        with urllib.request.urlopen(req, timeout=5.0) as res:
+            res_data = json.loads(res.read().decode('utf-8'))
+            alert_id = res_data.get("data", {}).get("alert_id")
+            person_matched = res_data.get("data", {}).get("person")
 
-    print(f"\n{GREEN}>> Buka monitor di http://localhost:3001/dashboard/monitor untuk melihat hasilnya.{RESET}\n")
+            print(f"\n{GREEN}{BOLD}✅ ALERT DPO BERHASIL DIBUAT & DISIARKAN REALTIME!{RESET}")
+            print(f"{CYAN}   - Target DPO   : {person_matched} ({score*100:.1f}% Match - CRITICAL){RESET}")
+            print(f"{CYAN}   - Alert ID     : {alert_id}{RESET}")
+            print(f"{GREEN}   - Web Socket   : Broadcast 'alert:new' & Bounding Box terkirim!{RESET}")
+            print(f"\n{YELLOW}📱 Ponsel Android akan otomatis berdering dengan alarm panggilan full-screen!")
+            print(f"💻 Monitor Web (http://localhost:3001/dashboard/monitor) menampilkan target DPO & Bounding Box.{RESET}\n")
+
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode('utf-8')
+        print(f"{RED}❌ Gagal mengirim trigger ({e.code}): {err_msg}{RESET}")
+    except Exception as e:
+        print(f"{RED}❌ Gagal menghubungkan ke backend: {e}{RESET}")
+        print(f"{YELLOW}   Pastikan backend di port 3002 berjalan (npm run dev).{RESET}")
 
 def main():
     parser = argparse.ArgumentParser(description="DISGUISE-ID AI Detection Event Trigger")
-    parser.add_argument("--person", type=str, default="Ichwal", help="Nama target DPO (misal: Ichwal, Aan, Raihan)")
-    parser.add_argument("--score", type=float, default=0.914, help="Skor kemiripan biometrik (misal: 0.914)")
-    parser.add_argument("--camera", type=str, default=DEFAULT_CAMERA_ID, help="UUID ID Kamera target")
+    parser.add_argument("--person", type=str, default="Aan", help="Nama target DPO (Aan, Ichwal, Raihan, Rifaldi)")
+    parser.add_argument("--score", type=float, default=0.87, help="Skor kemiripan biometrik (default 0.87)")
+    parser.add_argument("--camera", type=str, default=DEFAULT_CAMERA_ID, help="UUID ID Kamera")
+    parser.add_argument("--crop", type=str, default=DEFAULT_CROP_URL, help="URL Foto crop CCTV pembanding")
 
     args = parser.parse_args()
-    trigger_mock_detection(person_name=args.person, similarity=args.score, camera_id=args.camera)
+    trigger_detection(person_name=args.person, score=args.score, camera_id=args.camera, crop_url=args.crop)
 
 if __name__ == "__main__":
     main()
