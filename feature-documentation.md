@@ -411,4 +411,429 @@ sequenceDiagram
 
 ---
 
+## 6. Lampiran: 6 Blok Kode Paling Kritis & Signifikan dalam Proyek DISGUISE-ID
+
+Berikut adalah 6 potongan kode (*code blocks*) paling penting dan esensial dari keseluruhan arsitektur proyek **DISGUISE-ID**, mencakup AI inferensi, edge streaming, backend matching, dan mobilitas taktis lapangan.
+
+---
+
+### 6.1. Blok 1: Mesin Pencocokan Biometrik Vektor & Margin-Max Decision Policy
+* **File Sumber**: [`disguise-backend/src/queues/inference.worker.ts`](file:///home/ichwal/disguise-id-fix/disguise-backend/src/queues/inference.worker.ts)
+* **Mengapa Paling Penting**: Ini adalah **jantung pengambilan keputusan sistem (*the brain*)**. Menggunakan operator jarak Euclidean `<->` ekstensi `pgvector` di PostgreSQL untuk membandingkan embedding wajah hasil kamera dengan seluruh database DPO. Menerapkan algoritma **Margin-Max Decision Policy** (memilih antara embedding asli vs hasil rekonstruksi VAE jika terdapat oklusi/masker/kacamata) serta mengimplementasikan penyesuaian tier dinamis untuk mencegah ambiguitas identitas.
+
+```typescript
+// 1. Eksekusi Pencarian Kesamaan Vektor 512-Dimensi via pgvector (L2 Distance Operator <->)
+const queryEmbedding = async (emb: number[] | null) => {
+  if (!emb) return null;
+  const embeddingStr = `[${emb.join(',')}]`;
+  const candidates = await prisma.$queryRawUnsafe<Array<{
+    id: string;
+    full_name: string;
+    danger_level: string;
+    photo_url: string | null;
+    distance: number;
+  }>>(
+    `SELECT
+      id, full_name, danger_level, photo_url,
+      (embedding <-> $1::vector) AS distance
+    FROM watchlist_persons
+    WHERE
+      organization_id = $2
+      AND is_active = true
+      AND deleted_at IS NULL
+      AND embedding IS NOT NULL
+      AND (embedding <-> $1::vector) <= 2.0
+    ORDER BY embedding <-> $1::vector
+    LIMIT 3`,
+    embeddingStr,
+    orgId
+  );
+
+  if (candidates.length === 0) return null;
+
+  const dist1 = Number(candidates[0].distance);
+  let margin = 100.0;
+  if (candidates.length > 1) {
+    const dist2 = Number(candidates[1].distance);
+    if (dist2 > 0) margin = ((dist2 - dist1) / dist2) * 100;
+  }
+
+  return { candidates, dist1, margin };
+};
+
+// 2. Margin-Max Decision Policy: Evaluasi Cabang Asli vs Cabang Rekonstruksi Wajah
+const origResult = await queryEmbedding(v1Outcome.originalEmbedding);
+const reconResult = await queryEmbedding(v1Outcome.reconstructedEmbedding);
+
+let selectedResult = origResult;
+let branchName = 'ORIGINAL';
+
+if (reconResult && (!origResult || reconResult.margin > origResult.margin)) {
+  selectedResult = reconResult;
+  branchName = 'RECONSTRUCTED';
+}
+
+if (selectedResult) {
+  const { candidates, dist1, margin } = selectedResult;
+  bestMatchId = candidates[0].id;
+  bestMatchSim = -dist1;
+  marginPct = margin;
+
+  // Klasifikasi Tier Berdasarkan Jarak Terkalibrasi ArcFace
+  if (dist1 <= 1.15) {
+    tier = 'TINGGI'; // Match >= 75%
+  } else if (dist1 <= 1.30) {
+    tier = 'SEDANG'; // Match >= 55% - 60% (Langsung diambil dan memicu alert)
+  } else {
+    tier = 'RENDAH';
+  }
+
+  // Analisis Margin Relatif: Jika margin < 15% (ada 2 kandidat mirip), turunkan tier agar tidak salah tangkap
+  if (marginPct < 15.0) {
+    if (tier === 'TINGGI') tier = 'SEDANG';
+    else if (tier === 'SEDANG') tier = 'RENDAH';
+  }
+
+  if (tier === 'TINGGI' || tier === 'SEDANG') {
+    isMatch = true;
+  }
+}
+```
+
+---
+
+### 6.2. Blok 2: Algoritma Kalibrasi Skor Biometrik CCTV Surveillance
+* **File Sumber**: [`disguise-backend/src/utils/biometric.ts`](file:///home/ichwal/disguise-id-fix/disguise-backend/src/utils/biometric.ts)
+* **Mengapa Paling Penting**: Di dunia nyata, kamera CCTV menghadapi kompresi video, variasi pencahayaan, dan sudut kemiringan tajam, sehingga jarak L2 ArcFace jarang bernilai `0.0`. Fungsi matematika non-linear ini memetakan jarak Euclidean fisik menjadi persentase skor yang **intuitif bagi aparat lapangan dan memiliki nilai pembuktian forensik yang valid**.
+
+```typescript
+/**
+ * Calibrated Biometric Score Mapping untuk CCTV Surveillance (ArcFace / InsightFace)
+ * 
+ * Pemetaan Jarak Euclidean L2 ke Persentase Match:
+ * - d <= 0.70  -> 92.0% - 99.0% (Identitas Positif / Kualitas Studio Pasfoto)
+ * - d = 0.88   -> 86.0% (Match CCTV Sangat Tinggi)
+ * - d = 1.00   -> 82.0% (Match CCTV Tinggi)
+ * - d = 1.15   -> 75.0% (Ambang Batas Match Positif CCTV)
+ * - d = 1.30   -> 60.0% (Ambang Batas Deteksi Lapangan untuk Investigasi)
+ * - d >= 1.40  -> < 45.0% (Bukan Target / Orang Berbeda)
+ */
+export function calculateCalibratedPercentage(distance: number): number {
+  if (distance <= 0.70) {
+    return Math.min(99.0, Math.max(92.0, 99.0 - (distance / 0.70) * 7.0));
+  } else if (distance <= 1.12) {
+    return 92.0 - ((distance - 0.70) / (1.12 - 0.70)) * 14.0;
+  } else if (distance <= 1.30) {
+    return 78.0 - ((distance - 1.12) / (1.30 - 1.12)) * 23.0;
+  } else {
+    return Math.max(0.0, 55.0 - ((distance - 1.30) / 0.70) * 55.0);
+  }
+}
+```
+
+---
+
+### 6.3. Blok 3: Edge AI Deteksi Wajah RetinaFace & Filter Kualitas Gambar (FIQA)
+* **File Sumber**: [`camera-agent/face_detector.py`](file:///home/ichwal/disguise-id-fix/camera-agent/face_detector.py)
+* **Mengapa Paling Penting**: Beroperasi langsung pada node kamera (*Edge IoT*). Menggunakan modul deteksi ringan RetinaFace (`buffalo_s`), menerapkan *padding* 30% di sekitar wajah untuk menyertakan fitur rambut dan kontur dagu, serta menerapkan filter keburaman (*Face Image Quality Assessment*) berbasis varians Laplacian OpenCV agar frame yang kabur tidak membuang bandwidth server.
+
+```python
+class FaceDetector:
+    """
+    Ultra-lightweight Edge Face Detector.
+    Strictly performs RetinaFace face detection and frame cropping on Edge.
+    """
+    PAD_RATIO = 0.3
+    MIN_FACE_SIZE = 25
+
+    def __init__(self, det_size=(640, 640), min_confidence=0.30):
+        # Inisialisasi HANYA modul deteksi (tanpa memuat model rekognisi berat di edge)
+        self.app = FaceAnalysis(
+            name='buffalo_s',
+            allowed_modules=['detection'],
+            root='~/.insightface',
+            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+        )
+        self.app.prepare(ctx_id=-1, det_size=det_size)
+        self.min_confidence = min_confidence
+
+    def process_frame(self, frame: np.ndarray) -> Tuple[List[DetectedFace], bytes, FrameDimensions]:
+        h, w = frame.shape[:2]
+        dims = FrameDimensions(w=w, h=h)
+
+        # Downscale frame untuk deteksi ultra-cepat real-time
+        det_scale = min(640.0 / max(w, h), 1.0)
+        det_frame = cv2.resize(frame, (int(w * det_scale), int(h * det_scale))) if det_scale < 1.0 else frame
+
+        faces = self.app.get(det_frame)
+        detected_faces = []
+
+        for face in faces:
+            if face.det_score < self.min_confidence:
+                continue
+
+            # Rescale koordinat bounding box ke resolusi asli
+            box = (face.bbox / det_scale).astype(int)
+            x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+
+            # Berikan padding 30% agar fitur wajah utuh (rambut, dagu, kacamata)
+            pad_x = int((x2 - x1) * self.PAD_RATIO)
+            pad_y = int((y2 - y1) * self.PAD_RATIO)
+            x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
+            x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+
+            crop = frame[y1:y2, x1:x2]
+            
+            # FIQA: Filter Keburaman (Blur Detection) menggunakan Varians Laplacian
+            gray_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            variance = cv2.Laplacian(gray_crop, cv2.CV_64F).var()
+            if variance < config.blur_threshold:
+                continue  # Buang frame kabur
+                
+            _, crop_encoded = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            detected_faces.append(DetectedFace(
+                confidence=float(face.det_score),
+                bbox=BBox(x=x1, y=y1, w=x2 - x1, h=y2 - y1),
+                face_crop_bytes=crop_encoded.tobytes(),
+            ))
+
+        return detected_faces, thumb_bytes, dims
+```
+
+---
+
+### 6.4. Blok 4: Android 24/7 Background Service & Sirene Lockscreen Emergency Call
+* **File Sumber**: [`disguise-mobile/lib/core/realtime/background_service.dart`](file:///home/ichwal/disguise-id-fix/disguise-mobile/lib/core/realtime/background_service.dart)
+* **Mengapa Paling Penting**: Memecahkan masalah krusial di Android di mana aplikasi ditutup oleh sistem operasi (*battery optimization*). Menjalankan Isolate khusus di latar belakang yang menjaga koneksi Socket.IO 24/7, dan saat alert DPO masuk, langsung mengaktifkan `fullScreenIntent` untuk **membangunkan layar ponsel yang terkunci (*Lockscreen Wake*)** dan membunyikan alarm panggilan darurat.
+
+```dart
+@pragma('vm:entry-point')
+void startCallback() {
+  FlutterForegroundTask.setTaskHandler(DisguiseBackgroundTaskHandler());
+}
+
+class DisguiseBackgroundTaskHandler extends TaskHandler {
+  io.Socket? _backgroundSocket;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+
+  @override
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
+    final storage = SecureStorageService();
+    final token = await storage.getAccessToken();
+    if (token == null || token.isEmpty) return;
+
+    // Koneksi Socket.IO di dalam Background Isolate independen
+    _backgroundSocket = io.io(
+      Env.socketUrl,
+      io.OptionBuilder()
+          .setPath('/socket')
+          .setTransports(['websocket', 'polling'])
+          .enableAutoConnect()
+          .enableReconnection()
+          .setAuth({'token': token})
+          .build(),
+    );
+
+    // Tangkap event deteksi buronan saat aplikasi tertutup
+    _backgroundSocket?.on('alert:new', (data) async {
+      if (data is Map) {
+        final alertMap = Map<String, dynamic>.from(data);
+        final alertId = alertMap['id']?.toString() ?? alertMap['alert']?['id']?.toString();
+        final person = alertMap['person'] as Map? ?? {};
+        final personName = person['full_name'] ?? person['fullName'] ?? 'DPO TARGET';
+
+        // Konfigurasi Notifikasi Darurat Panggilan Penuh (Full-Screen Intent Alarm)
+        final androidDetails = AndroidNotificationDetails(
+          'disguise_alerts_critical',
+          'Peringatan Kritis DPO',
+          importance: Importance.max,
+          priority: Priority.max,
+          fullScreenIntent: true,         // <-- MEMBANGUNKAN LAYAR HP TERKUNCI
+          visibility: NotificationVisibility.public,
+          category: AndroidNotificationCategory.alarm,
+          audioAttributesUsage: AudioAttributesUsage.alarm,
+        );
+
+        await _localNotifications.show(
+          alertId.hashCode,
+          '⚠️ TARGET DPO TERDETEKSI: $personName',
+          'Ketuk untuk membuka radar visual & detail lokasi CCTV.',
+          NotificationDetails(android: androidDetails),
+          payload: 'disguiseid://alerts/incoming/$alertId',
+        );
+      }
+    });
+  }
+}
+```
+
+---
+
+### 6.5. Blok 5: Mekanisme Sinkronisasi Offline Taktis (Optimistic Outbox Pattern)
+* **File Sumber**: [`disguise-mobile/lib/core/sync/outbox_service.dart`](file:///home/ichwal/disguise-id-fix/disguise-mobile/lib/core/sync/outbox_service.dart)
+* **Mengapa Paling Penting**: Petugas kepolisian sering melakukan pengejaran di basement atau area tanpa sinyal seluler (*blindspot*). Blok kode ini memastikan keputusan verifikasi petugas langsung direspon seketika pada antarmuka (*Zero Latency Optimistic UI*), disimpan dalam antrean persisten SQLite Drift lokal, dan secara otomatis disinkronkan ke backend saat koneksi internet kembali pulih.
+
+```dart
+class OutboxService {
+  final AppDatabase _db;
+  final DioClient _dioClient;
+  bool _isSyncing = false;
+
+  /// Eksekusi Verifikasi Alert (Konfirmasi, False Positive, Dismiss) dengan Optimistic Update
+  Future<void> submitVerificationAction({
+    required String alertId,
+    required String action, // 'confirm', 'reject', 'dismiss'
+    String? reason,
+    required String operatorFullName,
+  }) async {
+    final statusMap = {
+      'confirm': 'confirmed',
+      'reject': 'false_positive',
+      'dismiss': 'dismissed',
+    };
+    final targetStatus = statusMap[action] ?? 'confirmed';
+
+    // 1. Perbarui UI SQLite lokal secara instan (Optimistic Response)
+    await _db.updateAlertStatus(
+      alertId,
+      targetStatus,
+      handledBy: operatorFullName,
+      handledAt: DateTime.now(),
+    );
+
+    // 2. Simpan aksi ke dalam tabel antrean Outbox persisten (Tahan restart HP)
+    await _db.insertOutboxAction(
+      OutboxTableCompanion(
+        alertId: drift.Value(alertId),
+        actionType: drift.Value(action),
+        reason: reason != null ? drift.Value(reason) : const drift.Value.absent(),
+        payloadJson: drift.Value(jsonEncode({
+          'status': targetStatus,
+          'handled_via': 'mobile',
+          'reason': reason,
+        })),
+      ),
+    );
+
+    // 3. Picu sinkronisasi ke server di latar belakang
+    unawaited(syncOutbox());
+  }
+
+  /// Mengosongkan antrean outbox ke backend dengan penanganan konflik HTTP 409
+  Future<void> syncOutbox() async {
+    if (_isSyncing) return;
+    _isSyncing = true;
+    try {
+      final pendingActions = await _db.getPendingOutboxActions();
+      for (final action in pendingActions) {
+        final res = await _dioClient.dio.patch(
+          '${ApiEndpoints.alerts}/${action.alertId}/status',
+          data: jsonDecode(action.payloadJson),
+        );
+        if (res.statusCode == 200) {
+          await _db.deleteOutboxAction(action.id); // Berhasil terkirim
+        }
+      }
+    } catch (e) {
+      // Jika offline, antrean tetap tersimpan aman di SQLite
+    } finally {
+      _isSyncing = false;
+    }
+  }
+}
+```
+
+---
+
+### 6.6. Blok 6: Live WebRTC Streaming & Dynamic Canvas Bounding Box Overlay
+* **File Sumber**: [`disguise-frontend/components/LiveCamera.tsx`](file:///home/ichwal/disguise-id-fix/disguise-frontend/components/LiveCamera.tsx)
+* **Mengapa Paling Penting**: Komponen visual utama pada monitor Command Center. Membuka koneksi WebRTC WHEP peer-to-peer ke server MediaMTX (`https://stream.disguise.id`) untuk latensi video di bawah 500 milidetik, lalu menggambar layer Bounding Box AI secara real-time yang tersinkronisasi dengan event WebSocket deteksi wajah.
+
+```tsx
+export const LiveCamera = ({ cameraId, cameraName, onSighting }: LiveCameraProps) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [boxes, setBoxes] = useState<LiveDetectionBox[]>([]);
+
+  useEffect(() => {
+    // 1. Inisialisasi WebRTC WHEP (WebRTC HTTP Egress Protocol) untuk Video Latensi Rendah
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    });
+
+    pc.ontrack = (event) => {
+      if (videoRef.current && event.streams[0]) {
+        videoRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    const startWhepStream = async () => {
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const whepUrl = `https://stream.disguise.id/${cameraId}/whep`;
+      const res = await fetch(whepUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp' },
+        body: offer.sdp,
+      });
+      const answerSdp = await res.text();
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    };
+
+    startWhepStream();
+
+    // 2. Dengarkan Bounding Box AI Real-time dari Socket.IO
+    const socket = getSocket();
+    socket.on('detection:live', (data: LiveTrackingPayload) => {
+      if (data.cameraId === cameraId) {
+        setBoxes(data.bboxes); // Update posisi kotak deteksi secara real-time
+      }
+    });
+
+    return () => {
+      pc.close();
+    };
+  }, [cameraId]);
+
+  return (
+    <div className="relative w-full h-full bg-slate-950 overflow-hidden rounded-lg">
+      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+
+      {/* Layer Overlay SVG Bounding Box AI */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+        {boxes.map((box, idx) => (
+          <g key={idx}>
+            <rect
+              x={`${(box.x / 1920) * 100}%`}
+              y={`${(box.y / 1080) * 100}%`}
+              width={`${(box.w / 1920) * 100}%`}
+              height={`${(box.h / 1080) * 100}%`}
+              fill="none"
+              stroke={box.is_match ? '#EF4444' : '#06B6D4'}
+              strokeWidth="2.5"
+              className={box.is_match ? 'animate-pulse' : ''}
+            />
+            {box.is_match && (
+              <text
+                x={`${(box.x / 1920) * 100}%`}
+                y={`${((box.y - 8) / 1080) * 100}%`}
+                fill="#EF4444"
+                fontSize="12"
+                fontWeight="bold"
+              >
+                ⚠️ {box.person_name} ({(box.similarity * 100).toFixed(1)}%)
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+};
+```
+
+---
+
 *Dokumen ini disusun sebagai panduan arsitektur resmi sistem DISGUISE-ID untuk tim pengembangan, operasional command center, dan petugas lapangan.*
+
