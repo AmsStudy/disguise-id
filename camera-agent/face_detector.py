@@ -132,21 +132,15 @@ def draw_face_boxes(frame: np.ndarray, detected_faces: List[DetectedFace]) -> np
     for face in detected_faces:
         x, y, w, h = face.bbox.x, face.bbox.y, face.bbox.w, face.bbox.h
         conf = face.confidence
-        
-        # Color status based on confidence
         if conf >= 0.8:
             color = (0, 255, 0) # Green in BGR
         elif conf >= 0.5:
             color = (0, 255, 255) # Yellow in BGR
         else:
             color = (0, 0, 255) # Red in BGR
-            
         cv2.rectangle(out_frame, (x, y), (x + w, y + h), color, 2)
-        
         label = f"Face {conf:.2f}"
         (text_w, text_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-        
-        # Draw background rectangle for text
         cv2.rectangle(out_frame, (x, max(0, y - text_h - 10)), (x + text_w, max(0, y)), color, -1)
         cv2.putText(out_frame, label, (x, max(0, y - 5)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
         
