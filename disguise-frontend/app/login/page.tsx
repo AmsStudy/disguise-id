@@ -220,51 +220,6 @@ export default function LoginPage() {
               </Button>
             </div>
           </form>
-
-          {/* Demo credentials */}
-          <div
-            style={{
-              marginTop: '28px',
-              padding: '16px',
-              background: 'rgba(0, 151, 178, 0.06)',
-              border: '1px solid rgba(0, 151, 178, 0.15)',
-              borderRadius: '12px',
-            }}
-          >
-            <div style={{ fontSize: '11px', color: '#4A6B84', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px', fontFamily: 'Inter, sans-serif' }}>
-              Demo Credentials
-            </div>
-            {[
-              { role: 'Admin', email: 'admin@polda.go.id', password: 'Admin123!' },
-              { role: 'Operator', email: 'operator@polda.go.id', password: 'Operator123!' },
-            ].map((cred) => (
-              <button
-                key={cred.role}
-                type="button"
-                onClick={() => {
-                  setEmail(cred.email);
-                  setPassword(cred.password);
-                }}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px 0',
-                  color: '#00CFE8',
-                  fontSize: '12px',
-                  fontFamily: 'JetBrains Mono, monospace',
-                  transition: 'color 0.2s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#00E5FF')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#00CFE8')}
-              >
-                {cred.role}: {cred.email}
-              </button>
-            ))}
-          </div>
         </div>
       </motion.div>
     </div>
