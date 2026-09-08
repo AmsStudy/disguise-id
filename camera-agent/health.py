@@ -25,7 +25,7 @@ class HealthReporter:
                     self.endpoint,
                     headers=self.headers,
                     json={"status": "online"},
-                    timeout=5.0
+                    timeout=10.0
                 )
                 response.raise_for_status()
                 logger.debug("Heartbeat sent successfully.")

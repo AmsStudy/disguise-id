@@ -10,4 +10,5 @@ services:
       - .env
     volumes:
       - .:/app
+      - ~/.insightface:/root/.insightface
     network_mode: "host"

@@ -225,7 +225,8 @@ webrtc: yes
 webrtcICEServers2:
   - url: stun:stun.l.google.com:19302
 webrtcAdditionalHosts:
-  - 34.101.174.33
+  - 100.86.37.37
+  - 172.125.1.100
   - stream.disguise.id
 readTimeout: 30s
 writeTimeout: 30s

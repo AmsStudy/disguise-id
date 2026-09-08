@@ -67,15 +67,19 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
       pcRef.current = pc;
 
       pc.addTransceiver("video", { direction: "recvonly" });
-      pc.addTransceiver("audio", { direction: "recvonly" });
 
       pc.ontrack = (event) => {
         if (!isMountedRef.current) return;
         if (videoRef.current && event.streams && event.streams[0]) {
-          videoRef.current.srcObject = event.streams[0];
-          videoRef.current.play().catch((err) => {
-            console.warn("[WebRTC] Autoplay play() caught:", err.message);
-          });
+          if (videoRef.current.srcObject !== event.streams[0]) {
+            videoRef.current.srcObject = event.streams[0];
+            const playPromise = videoRef.current.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err) => {
+                console.warn("[WebRTC] Autoplay play() caught:", err.message);
+              });
+            }
+          }
           setError(null);
           setIsConnecting(false);
         }
