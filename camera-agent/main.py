@@ -39,6 +39,7 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         "-fflags", "+genpts+nobuffer",
         "-rtsp_transport", "tcp",
         "-timeout", "5000000",
+        "-rw_timeout", "5000000",
         "-i", push_source_url,
         "-c:v", "copy",
         "-an",
