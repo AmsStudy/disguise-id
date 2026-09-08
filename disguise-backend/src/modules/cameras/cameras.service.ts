@@ -351,12 +351,15 @@ paths:
     });
 
     if (!camera) throw notFound('Camera');
-    if (!camera.streamUrl) throw badRequest('Camera does not have a stream URL configured');
 
-    let rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password, orgId, id);
-    if (this.isPrivateStreamUrl(camera.streamUrl)) {
-      const localMtxRtsp = process.env.MEDIAMTX_LOCAL_RTSP_URL || 'rtsp://127.0.0.1:8554';
+    let rtspUrl: string;
+    const localMtxRtsp = process.env.MEDIAMTX_LOCAL_RTSP_URL || 'rtsp://127.0.0.1:8554';
+
+    if (!camera.streamUrl || this.isPrivateStreamUrl(camera.streamUrl)) {
+      // Edge camera agent or private stream: stream is pushed to local MediaMTX
       rtspUrl = `${localMtxRtsp}/${id}`;
+    } else {
+      rtspUrl = this.buildRtspUrl(camera.streamUrl, camera.username, camera.password, orgId, id);
     }
     // @ts-ignore
     const ffmpegBinary = typeof ffmpegPath === 'string' ? ffmpegPath : ffmpegPath?.path || String(ffmpegPath);

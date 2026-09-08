@@ -14,11 +14,15 @@ export const authenticate = async (
 ): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw unauthorized('Missing or invalid Authorization header');
+    let token: string | null = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+    if (!token && typeof req.query.token === 'string') {
+      token = req.query.token;
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token) {
+      throw unauthorized('Missing or invalid Authorization header');
+    }
 
     // Check if token is blacklisted (after logout)
     const redis = getRedis();
