@@ -28,6 +28,9 @@ import { mobileRouter } from './routes/mobile.v1';
 
 const app = express();
 
+// ─── Trust Proxy (For Cloudflare Tunnel & Reverse Proxies) ─────
+app.set('trust proxy', true);
+
 // ─── Security Middleware ─────────────────────────────────────
 app.use(helmet());
 app.use(cors({
@@ -38,11 +41,20 @@ app.use(cors({
 // ─── Rate Limiting ───────────────────────────────────────────
 const globalRateLimit = rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
-  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 2000,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    return req.path.includes('/inference/') || req.path.includes('/camera-agent/') || !!req.headers['x-api-key'];
+    return (
+      req.path.includes('/inference/') ||
+      req.path.includes('/camera-agent/') ||
+      req.path.includes('/mobile/') ||
+      req.path.includes('/cameras/') ||
+      !!req.headers['x-api-key']
+    );
+  },
+  keyGenerator: (req) => {
+    return (req.headers['cf-connecting-ip'] as string) || req.ip || '127.0.0.1';
   },
   message: {
     success: false,
