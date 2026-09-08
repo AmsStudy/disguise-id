@@ -81,6 +81,8 @@ services:
       - ML_SERVICE_API_KEY=${ML_SERVICE_API_KEY:-WalMWH1hinTEutYiOoeVeH8NYG-9d0P8DunLSlwYzGtgSCabPbN-bfQlQmBDtgec}
       - REQUIRE_CUDA=false
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
+    volumes:
+      - ./ml-service-v2/weights:/app/weights
     # Uncomment the below block if you have an NVIDIA GPU setup for Docker
     # deploy:
     #   resources:
