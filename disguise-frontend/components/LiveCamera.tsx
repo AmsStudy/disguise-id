@@ -202,10 +202,15 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
             currentBoxesRef.current = [...targets].map((t) => [...t]);
           } else {
             for (let i = 0; i < targets.length; i++) {
-              currents[i][0] += (targets[i][0] - currents[i][0]) * 0.45;
-              currents[i][1] += (targets[i][1] - currents[i][1]) * 0.45;
-              currents[i][2] += (targets[i][2] - currents[i][2]) * 0.45;
-              currents[i][3] += (targets[i][3] - currents[i][3]) * 0.45;
+              const dx = targets[i][0] - currents[i][0];
+              const dy = targets[i][1] - currents[i][1];
+              const dist = Math.hypot(dx, dy);
+              // Fast-snap if sudden movement, smooth lerp if subtle jitter
+              const factor = dist > 40 ? 0.85 : 0.65;
+              currents[i][0] += dx * factor;
+              currents[i][1] += dy * factor;
+              currents[i][2] += (targets[i][2] - currents[i][2]) * factor;
+              currents[i][3] += (targets[i][3] - currents[i][3]) * factor;
               currents[i][4] = targets[i][4];
             }
           }
@@ -286,7 +291,7 @@ const LiveCamera = ({ cameraId }: { cameraId: string }) => {
           targetBoxesRef.current = [];
           currentBoxesRef.current = [];
         }
-      }, 500);
+      }, 1000);
     };
 
     subscribeCamera(cameraId, handleLiveDetection);

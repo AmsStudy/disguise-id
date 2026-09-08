@@ -11,13 +11,28 @@ class BackendUploader:
     def __init__(self):
         self.backend_url = config.backend_url.rstrip('/')
         self.endpoint = f"{self.backend_url}/api/v1/inference/frame"
+        self.tracking_url = f"{self.backend_url}/api/v1/camera-agent/tracking"
         self.headers = {
             "X-Api-Key": config.api_key
         }
         
-        # Bounded queues to prevent memory leaks if backend is slow/offline
+        # Dedicated HTTP sessions for inference vs live tracking
+        self.inference_session = requests.Session()
+        self.inference_session.headers.update(self.headers)
+        inf_adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=1)
+        self.inference_session.mount('https://', inf_adapter)
+        self.inference_session.mount('http://', inf_adapter)
+
+        self.tracking_session = requests.Session()
+        self.tracking_session.headers.update(self.headers)
+        track_adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=0)
+        self.tracking_session.mount('https://', track_adapter)
+        self.tracking_session.mount('http://', track_adapter)
+
+        # Bounded queues
         self.inference_queue = queue.Queue(maxsize=50)
-        self.tracking_queue = queue.Queue(maxsize=100)
+        # Tracking queue size 2: strictly for real-time live frames
+        self.tracking_queue = queue.Queue(maxsize=2)
         
         # Start background daemon threads
         self.worker_thread = threading.Thread(target=self._inference_worker, daemon=True)
@@ -34,12 +49,11 @@ class BackendUploader:
                 if task is None: 
                     break
                 
-                response = requests.post(
+                response = self.inference_session.post(
                     self.endpoint,
-                    headers=self.headers,
                     data=task['data'],
                     files=task['files'],
-                    timeout=5.0
+                    timeout=8.0
                 )
                 
                 if response.status_code == 429:
@@ -59,17 +73,18 @@ class BackendUploader:
                 self.inference_queue.task_done()
 
     def _tracking_worker(self):
-        """Background thread that pops tracking data and sends to backend."""
+        """Background thread that pops the freshest tracking data and sends to backend."""
         while True:
             try:
                 task = self.tracking_queue.get()
                 if task is None:
                     break
                     
-                url = f"{self.backend_url}/api/v1/camera-agent/tracking"
-                requests.post(url, headers=self.headers, json=task['data'], timeout=1.0)
-            except Exception:
-                pass
+                resp = self.tracking_session.post(self.tracking_url, json=task['data'], timeout=2.5)
+                if resp.status_code != 200:
+                    logger.warning(f"[Tracking] HTTP error {resp.status_code}: {resp.text}")
+            except Exception as e:
+                logger.warning(f"[Tracking] Failed to upload tracking: {e}")
             finally:
                 self.tracking_queue.task_done()
                 
@@ -110,15 +125,25 @@ class BackendUploader:
 
     def upload_live_tracking(self, bboxes, timestamp, frame_w, frame_h):
         """
-        Pushes live tracking data to the non-blocking bounded queue.
+        Pushes live tracking data to the queue.
+        Always drops older frames so only the freshest coordinates are transmitted.
         """
+        clean_bboxes = [[int(b[0]), int(b[1]), int(b[2]), int(b[3]), float(b[4])] for b in bboxes]
         data = {
-            "timestamp": timestamp,
-            "bboxes": bboxes,
-            "frame_w": frame_w,
-            "frame_h": frame_h
+            "timestamp": str(timestamp),
+            "bboxes": clean_bboxes,
+            "frame_w": int(frame_w),
+            "frame_h": int(frame_h)
         }
+        # Drop stale frames from queue so worker always transmits the newest frame
+        while not self.tracking_queue.empty():
+            try:
+                self.tracking_queue.get_nowait()
+                self.tracking_queue.task_done()
+            except (queue.Empty, ValueError):
+                break
+
         try:
             self.tracking_queue.put_nowait({'data': data})
         except queue.Full:
-            pass # Silently drop tracking frames if backend is overwhelmed
+            pass

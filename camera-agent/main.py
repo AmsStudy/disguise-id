@@ -39,7 +39,6 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         "-fflags", "+genpts+nobuffer",
         "-rtsp_transport", "tcp",
         "-timeout", "5000000",
-        "-rw_timeout", "5000000",
         "-i", push_source_url,
         "-c:v", "copy",
         "-an",
@@ -271,41 +270,40 @@ def main():
                 if time.time() > end_time:
                     break
                     
-                capture_id = str(uuid.uuid4())
                 timestamp = datetime.datetime.utcnow().isoformat() + "Z"
                 
-                # Detect faces and extract embeddings
-                faces, thumb_bytes, dims = detector.process_frame(frame)
+                # 1. FAST PURE DETECTION (Real-time tracking, zero crop/encode overhead)
+                fast_boxes = detector.detect_faces_fast(frame)
                 
                 # --- LIVE TRACKING (Canvas Bounding Box) ---
-                bboxes = [[int(f.bbox.x), int(f.bbox.y), int(f.bbox.w), int(f.bbox.h), round(float(f.confidence), 2)] for f in faces]
-                if len(bboxes) > 0:
+                if len(fast_boxes) > 0:
+                    bboxes = [[int(x), int(y), int(w), int(h), float(conf)] for (x, y, w, h, conf) in fast_boxes]
                     uploader.upload_live_tracking(bboxes, timestamp, frame.shape[1], frame.shape[0])
                 
-                # --- ML INFERENCE (Throttled) ---
-                if time.time() - last_ml_upload_time >= (1.0 / current_fps):
+                # --- ML INFERENCE (Throttled for DPO matching, min 2.0s to allow backend BullMQ processing) ---
+                if time.time() - last_ml_upload_time >= max(2.0, 1.0 / current_fps):
                     last_ml_upload_time = time.time()
                     
-                    if int(time.time()) % 5 == 0:
-                        preview_frame = frame
-                        if config.face_box_overlay_enabled:
+                    if len(fast_boxes) > 0:
+                        capture_id = str(uuid.uuid4())
+                        faces, thumb_bytes, dims = detector.prepare_ml_payload(frame, fast_boxes)
+                        
+                        if config.face_box_overlay_enabled and int(time.time()) % 5 == 0:
                             from face_detector import draw_face_boxes
                             preview_frame = draw_face_boxes(frame, faces)
-                        cv2.imwrite(f"debug_frame.jpg", preview_frame)
+                            cv2.imwrite("debug_frame.jpg", preview_frame)
 
-                    if len(faces) > 0:
-                        logger.info(f"Found {len(faces)} face(s) for capture {capture_id}")
-                        face_index = 0
-                        for face in faces:
-                            uploader.upload_face(
-                                face=face,
-                                frame_thumb_bytes=thumb_bytes,
-                                frame_dims=dims,
-                                capture_id=capture_id,
-                                timestamp=timestamp,
-                                face_index=face_index
-                            )
-                            face_index += 1
+                        if len(faces) > 0:
+                            logger.info(f"Submitting {len(faces)} face(s) for backend DPO matching (Capture ID: {capture_id})")
+                            for face_index, face in enumerate(faces):
+                                uploader.upload_face(
+                                    face=face,
+                                    frame_thumb_bytes=thumb_bytes,
+                                    frame_dims=dims,
+                                    capture_id=capture_id,
+                                    timestamp=timestamp,
+                                    face_index=face_index
+                                )
 
     except Exception as e:
         logger.error(f"Fatal error in main loop: {e}", exc_info=True)

@@ -41,6 +41,9 @@ const globalRateLimit = rateLimit({
   max: Number(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    return req.path.includes('/inference/') || req.path.includes('/camera-agent/') || !!req.headers['x-api-key'];
+  },
   message: {
     success: false,
     error: {
