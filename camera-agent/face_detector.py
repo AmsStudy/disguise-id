@@ -5,13 +5,15 @@ from typing import List, Tuple
 from models import BBox, DetectedFace, FrameDimensions
 import logging
 
+from config import config
+
 logger = logging.getLogger(__name__)
 
 class FaceDetector:
-    PAD_RATIO = 0.3
-    MIN_FACE_SIZE = 40
+    PAD_RATIO = getattr(config, 'pad_ratio', 0.15)
+    MIN_FACE_SIZE = getattr(config, 'min_face_size', 40)
 
-    def __init__(self, det_size=(640, 640), min_confidence=0.5):
+    def __init__(self, det_size=None, min_confidence=None, pad_ratio=None):
         import onnxruntime
         available_providers = onnxruntime.get_available_providers()
 
@@ -22,6 +24,10 @@ class FaceDetector:
             ctx_id = 0
         providers.append('CPUExecutionProvider')
 
+        actual_det_size = det_size if det_size is not None else (config.det_size, config.det_size)
+        if isinstance(actual_det_size, int):
+            actual_det_size = (actual_det_size, actual_det_size)
+
         # Pure face detection mode: ONLY run SCRFD det_10g (skip heavy 512D ArcFace, 3D landmarks, and genderage)
         self.app = FaceAnalysis(
             name='buffalo_l', 
@@ -29,9 +35,10 @@ class FaceDetector:
             providers=providers,
             allowed_modules=['detection']
         )
-        self.app.prepare(ctx_id=ctx_id, det_size=det_size)
-        self.min_confidence = min_confidence
-        logger.info(f"FaceDetector initialized (Pure Detection Mode), providers={providers}, ctx_id={ctx_id}, det_size={det_size}")
+        self.app.prepare(ctx_id=ctx_id, det_size=actual_det_size)
+        self.min_confidence = min_confidence if min_confidence is not None else config.min_confidence
+        self.pad_ratio = pad_ratio if pad_ratio is not None else getattr(config, 'pad_ratio', 0.15)
+        logger.info(f"FaceDetector initialized (Pure Detection Mode), providers={providers}, ctx_id={ctx_id}, det_size={actual_det_size}, pad_ratio={self.pad_ratio}, min_conf={self.min_confidence}")
 
     def detect_faces_fast(self, frame: np.ndarray) -> List[Tuple[int, int, int, int, float]]:
         """
@@ -52,8 +59,8 @@ class FaceDetector:
 
             face_w = x2 - x1
             face_h = y2 - y1
-            pad_x = int(face_w * self.PAD_RATIO)
-            pad_y = int(face_h * self.PAD_RATIO)
+            pad_x = int(face_w * self.pad_ratio)
+            pad_y = int(face_h * self.pad_ratio)
             x1 = max(0, x1 - pad_x)
             y1 = max(0, y1 - pad_y)
             x2 = min(w, x2 + pad_x)
@@ -68,6 +75,47 @@ class FaceDetector:
             fast_boxes.append((int(x1), int(y1), int(crop_w), int(crop_h), float(round(conf, 2))))
 
         return fast_boxes
+
+    def detect_faces_detailed(self, frame: np.ndarray) -> List[dict]:
+        """
+        Full face detection returning bounding box, confidence, and 5-point facial landmarks.
+        Returns: List of dicts with keys: 'bbox' (x, y, w, h), 'conf', 'landmarks' (5-point [x, y])
+        """
+        h, w = frame.shape[:2]
+        faces = self.app.get(frame)
+        results = []
+
+        for face in faces:
+            conf = float(face.det_score)
+            if conf < self.min_confidence:
+                continue
+
+            box = face.bbox.astype(int)
+            x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+
+            face_w = x2 - x1
+            face_h = y2 - y1
+            pad_x = int(face_w * self.pad_ratio)
+            pad_y = int(face_h * self.pad_ratio)
+            x1 = max(0, x1 - pad_x)
+            y1 = max(0, y1 - pad_y)
+            x2 = min(w, x2 + pad_x)
+            y2 = min(h, y2 + pad_y)
+
+            crop_w = x2 - x1
+            crop_h = y2 - y1
+
+            if crop_w < self.MIN_FACE_SIZE or crop_h < self.MIN_FACE_SIZE:
+                continue
+
+            landmarks = face.kps.tolist() if hasattr(face, 'kps') and face.kps is not None else None
+            results.append({
+                'bbox': (int(x1), int(y1), int(crop_w), int(crop_h)),
+                'conf': float(round(conf, 2)),
+                'landmarks': landmarks,
+            })
+
+        return results
 
     def prepare_ml_payload(self, frame: np.ndarray, fast_boxes: List[Tuple[int, int, int, int, float]]) -> Tuple[List[DetectedFace], bytes, FrameDimensions]:
         """

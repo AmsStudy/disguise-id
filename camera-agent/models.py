@@ -15,6 +15,7 @@ class DetectedFace(BaseModel):
     confidence: float
     bbox: BBox
     face_crop_bytes: bytes  # JPEG encoded
+    landmarks: Optional[List[List[float]]] = None  # 5-point facial landmarks [[x, y], ...]
     edge_embedding: Optional[List[float]] = None
     edge_embedding_metadata: Optional[dict] = None
     

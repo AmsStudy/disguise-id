@@ -13,10 +13,12 @@ class AgentConfig(BaseModel):
     
     # Detector settings
     det_size: int = int(os.getenv("DET_SIZE", "640"))
-    min_confidence: float = float(os.getenv("MIN_CONFIDENCE", "0.5"))
+    min_confidence: float = float(os.getenv("MIN_CONFIDENCE", "0.8"))
+    pad_ratio: float = float(os.getenv("PAD_RATIO", "0.15"))
+    min_face_size: int = int(os.getenv("MIN_FACE_SIZE", "40"))
+    blur_threshold: float = float(os.getenv("BLUR_THRESHOLD", "60.0"))
     edge_embedding_shadow_enabled: bool = os.getenv("EDGE_EMBEDDING_SHADOW_ENABLED", "false").lower() == "true"
     face_box_overlay_enabled: bool = os.getenv("FACE_BOX_OVERLAY_ENABLED", "false").lower() == "true"
-    blur_threshold: float = float(os.getenv("BLUR_THRESHOLD", "80.0"))
     stream_push_enabled: bool = os.getenv("STREAM_PUSH_ENABLED", "true").lower() == "true"
     mediamtx_host: str = os.getenv("MEDIAMTX_HOST", "")
 

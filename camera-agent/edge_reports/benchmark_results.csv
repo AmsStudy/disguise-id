@@ -1,0 +1,4 @@
+video_name,total_frames_evaluated,faces_detected_raw,faces_passed_laplacian,faces_dropped_blur,laplacian_pass_rate_pct,avg_inference_latency_ms,estimated_fps
+synthetic_test_stream.mp4,30,0,0,0,0.0,48.89,20.45
+test_cctv_sample.mp4,15,0,0,0,0.0,43.78,22.84
+cctv_hour_01_target.mp4,10,10,10,0,100.0,47.88,20.89

@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-disguise_local_pass_2026}
       POSTGRES_DB: disguiseid
     ports:
       - "5432:5432"
@@ -104,7 +104,7 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:password@postgres:5432/disguiseid}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:disguise_local_pass_2026@postgres:5432/disguiseid}
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
