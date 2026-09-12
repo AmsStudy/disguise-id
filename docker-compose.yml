@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-disguise_local_pass_2026}
       POSTGRES_DB: disguiseid
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432" # Dikunci ke localhost (kebal dari scanning IP lokal / 172.125.0.0/21)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     container_name: disguise-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379" # Dikunci ke localhost
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -41,8 +41,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9001:9001" # Web Console dikunci ke localhost (bisa diakses via SSH Tunnel)
+      # Port 9000 (S3 API) tidak di-expose ke host publik; diakses melalui Caddy storage.{$DOMAIN_NAME}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -57,16 +57,14 @@ services:
     container_name: disguise-mediamtx
     restart: unless-stopped
     ports:
-      - "8554:8554"
-      - "1935:1935"
-      - "8888:8888"
-      - "8889:8889"
-      - "8189:8189/udp"
-      - "9997:9997"
+      - "8554:8554"           # RTSP ingest port (Push stream dari CCTV Tapo / Raspberry Pi)
+      - "127.0.0.1:8888:8888" # HLS internal
+      - "127.0.0.1:8889:8889" # WHEP WebRTC internal (publik via stream.{$DOMAIN_NAME} Caddy)
+      - "127.0.0.1:9997:9997" # MediaMTX API internal
     volumes:
       - ./infrastructure/mediamtx.yml:/mediamtx.yml
 
-  # ─── 2. ML SERVICE V2 ────────────────────────────────────────
+  # ─── 2. ML SERVICE V2 (GSIVAE + ArcFace v2.1) ───────────────
   ml-service:
     build:
       context: ./ml-service-v2
@@ -74,7 +72,7 @@ services:
     container_name: disguise-ml-service
     restart: unless-stopped
     ports:
-      - "8000:8001"
+      - "127.0.0.1:8000:8001" # Dikunci ke localhost, backend panggil internal via http://ml-service:8001
     environment:
       - HOST=0.0.0.0
       - PORT=8001
@@ -83,7 +81,7 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
     volumes:
       - ./ml-service-v2/weights:/app/weights
-    # Uncomment the below block if you have an NVIDIA GPU setup for Docker
+    # Uncomment jika menggunakan NVIDIA GPU pada Docker host
     # deploy:
     #   resources:
     #     reservations:
@@ -92,7 +90,7 @@ services:
     #           count: 1
     #           capabilities: [gpu]
 
-  # ─── 3. BACKEND (Express Node.js) ────────────────────────────
+  # ─── 3. BACKEND (Express Node.js v2.1) ──────────────────────
   backend:
     build:
       context: ./disguise-backend
@@ -100,9 +98,9 @@ services:
     container_name: disguise-backend
     restart: unless-stopped
     ports:
-      - "${BACKEND_PORT:-3002}:3000" # Expose internally 3000 to externally 3002
+      - "127.0.0.1:${BACKEND_PORT:-3002}:3000" # Dikunci ke localhost, publik via api.{$DOMAIN_NAME}
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
       - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:disguise_local_pass_2026@postgres:5432/disguiseid}
       - REDIS_URL=redis://redis:6379
@@ -111,7 +109,7 @@ services:
       - MINIO_USE_SSL=false
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
-      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-http://localhost:9000}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-https://storage.disguise.id}
       - JWT_SECRET=${JWT_SECRET:-super_secret_for_dev}
       - ML_SERVICE_URL=http://ml-service:8001
       - ML_SERVICE_V2_URL=http://ml-service:8001
@@ -135,33 +133,33 @@ services:
       redis:
         condition: service_healthy
 
-  # ─── 4. FRONTEND (Next.js) ───────────────────────────────────
+  # ─── 4. FRONTEND (Next.js v2.1) ─────────────────────────────
   frontend:
     build:
       context: ./disguise-frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3002}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:3002}
-        NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL: ${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-http://localhost:8889}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.disguise.id}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-wss://api.disguise.id}
+        NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL: ${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-https://stream.disguise.id}
     container_name: disguise-frontend
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001" # Dikunci ke localhost, publik via {$DOMAIN_NAME}
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3002}
-      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:3002}
-      - NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL=${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-http://localhost:8889}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-https://api.disguise.id}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-wss://api.disguise.id}
+      - NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL=${NEXT_PUBLIC_MEDIAMTX_WHEP_BASE_URL:-https://stream.disguise.id}
     depends_on:
       - backend
 
-  # ─── 5. REVERSE PROXY (Caddy) ────────────────────────────────
+  # ─── 5. REVERSE PROXY & HOST FIREWALL (Caddy) ───────────────
   caddy:
     image: caddy:2-alpine
     container_name: disguise-caddy
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:80"   # Menerima HTTP; Caddyfile langsung menolak akses IP langsung dengan 403 Forbidden
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
@@ -174,6 +172,25 @@ services:
         condition: service_healthy
       frontend:
         condition: service_started
+
+  # ─── 6. CLOUDFLARE TUNNEL (Zero Trust Ingress) ──────────────
+  # Layanan tunnel keluar (outbound-only). Tidak membutuhkan port masuk terbuka di host!
+  # Cukup masukkan token tunnel dari Cloudflare Zero Trust Dashboard ke file .env:
+  # CLOUDFLARE_TUNNEL_TOKEN=eyJh...
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: disguise-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - caddy
+
+networks:
+  default:
+    name: disguise-network
+    driver: bridge
 
 volumes:
   postgres_data:

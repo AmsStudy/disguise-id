@@ -1,6 +1,6 @@
 {
   "name": "disguise-id-backend",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "DISGUISE-ID Backend API — Face recognition system for partially-obscured face matching against watchlists",
   "main": "dist/index.js",
   "scripts": {

@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Node.js
 node_modules/
@@ -34,12 +35,29 @@ disguise-mobile/build/
 .flutter-plugins
 .flutter-plugins-dependencies
 
-# Models & Large Files
+# Models & Large Binary Files (GitHub > 100MB limit)
 *.pt
 *.pth
 *.onnx
 *.zip
-!ml-service-v2/weights/best_model.pt
+*.tar
+*.tar.gz
+*.bin
+*.weights
+*.backup
+*.pt_backup
+*_backup
+# Pertahankan dokumentasi tentang model di folder weights
+!ml-service-v2/weights/*.md
+
+# Testing & Evaluation Files (Eksperimen / Benchmark Lokal)
+data_test/
+evaluation_output/
+cctv_model_evaluation.ipynb
+evaluate_cctv_model.py
+scripts/generate_evaluation_notebook.py
+test.md
+*.ipynb_checkpoints/
 
 # Local IDE / OS
 .vscode/

@@ -20,6 +20,13 @@ coverage/
 # ML models and generated outputs
 *.pt
 *.pth
+*.onnx
+*.weights
+*.bin
+*.backup
+*.pt_backup
+*_backup
+!weights/*.md
 outputs/
 checkpoints/
 

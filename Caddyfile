@@ -1,12 +1,22 @@
 {
     # Global options
-    # Karena kita berada di belakang Cloudflare Proxy (yang sudah menyediakan HTTPS ke pengunjung),
-    # Caddy bisa fokus ke HTTP biasa, atau Cloudflare Flexible SSL.
-    # Namun untuk keamanan terbaik, kita biarkan Caddy memproses auto-HTTPS jika tidak bentrok,
-    # atau cukup dengarkan HTTP/80 yang Cloudflare Proxy lewati.
+    # SSL/TLS ditangani oleh Cloudflare Edge & Cloudflare Tunnel
     auto_https off
 }
 
+# ─────────────────────────────────────────────────────────────
+# 1. KEAMANAN: BLOKIR SEMUA AKSES LANGSUNG MENGGUNAKAN IP
+#    (Contoh: http://172.125.x.x atau http://<IP_PUBLIK>)
+# ─────────────────────────────────────────────────────────────
+:80 {
+    respond "403 Forbidden: Akses langsung via IP ({host}) diblokir! Seluruh akses wajib melalui domain resmi Cloudflare Tunnel." 403 {
+        close
+    }
+}
+
+# ─────────────────────────────────────────────────────────────
+# 2. HANYA MENERIMA REQUEST DARI DOMAIN RESMI CLOUDFLARE
+# ─────────────────────────────────────────────────────────────
 http://{$DOMAIN_NAME} {
     # Rute ke Frontend (Next.js)
     reverse_proxy frontend:3001

@@ -43,8 +43,8 @@ async def lifespan(app: FastAPI):
     pass
 
 app = FastAPI(
-    title="ML Service V2 (Stage 20B + ArcFace)",
-    version="2.0.0",
+    title="ML Service V2 (GSIVAE + ArcFace)",
+    version="2.1.0",
     lifespan=lifespan
 )
 
@@ -57,7 +57,8 @@ def health_check():
     
     return {
         "status": overall,
-        "version": "2.0.0",
+        "version": "2.1.0",
+        "model_architecture": "GSIVAE",
         "model_ready": model_ready,
         "arcface_ready": arcface_ready,
         "gallery_ready": gallery_ready,

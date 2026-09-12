@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from PIL import Image
 from torchvision import transforms
-from app.models.stage20b import SkipConnectedAutoencoder, SkipAEConfig
+from app.models.stage20b import SkipConnectedAutoencoder, GSIVAE, SkipAEConfig
 from app.config import settings
 import hashlib
 
@@ -21,8 +21,12 @@ class ReconstructionService:
             raise KeyError("Checkpoint missing model_state_dict")
 
         self.config = SkipAEConfig(**checkpoint["model_config"])
-        self.model = SkipConnectedAutoencoder(self.config)
-        self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        state_dict = checkpoint["model_state_dict"]
+        if "fc_mu.weight" in state_dict:
+            self.model = GSIVAE(self.config)
+        else:
+            self.model = SkipConnectedAutoencoder(self.config)
+        self.model.load_state_dict(state_dict, strict=True)
         self.strict_load_status = True
         self.model = self.model.to(self.device).eval()
         

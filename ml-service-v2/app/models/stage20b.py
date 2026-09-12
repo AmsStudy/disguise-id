@@ -33,6 +33,73 @@ class DecoderFuseBlock(nn.Module):
         x = F.interpolate(x, size=skip.shape[-2:], mode='bilinear', align_corners=False)
         return self.conv(torch.cat([x, skip], dim=1))
 
+class GatedDecoderFuseBlock(nn.Module):
+    def __init__(self, in_ch: int, skip_ch: int, out_ch: int):
+        super().__init__()
+        self.gate = nn.Sequential(
+            nn.Conv2d(in_ch + skip_ch, skip_ch, 1, bias=True),
+            nn.Sigmoid()
+        )
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch + skip_ch, out_ch, 3, padding=1, bias=False), nn.BatchNorm2d(out_ch), nn.SiLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False), nn.BatchNorm2d(out_ch), nn.SiLU(inplace=True),
+        )
+    def forward(self, x: Tensor, skip: Tensor) -> Tensor:
+        x = F.interpolate(x, size=skip.shape[-2:], mode='bilinear', align_corners=False)
+        cat_feat = torch.cat([x, skip], dim=1)
+        g = self.gate(cat_feat)
+        gated_skip = skip * g
+        return self.conv(torch.cat([x, gated_skip], dim=1))
+
+class GSIVAE(nn.Module):
+    def __init__(self, config: SkipAEConfig):
+        super().__init__()
+        self.config = config
+        b = config.base_channels
+        self.enc1 = ResidualDownBlock(3, b)
+        self.enc2 = ResidualDownBlock(b, b*2)
+        self.enc3 = ResidualDownBlock(b*2, b*4)
+        self.enc4 = ResidualDownBlock(b*4, b*8)
+        self.enc5 = ResidualDownBlock(b*8, b*16)
+        self.flatten_dim = b*16*7*7
+        self.fc_mu = nn.Linear(self.flatten_dim, config.latent_dim)
+        self.fc_logvar = nn.Linear(self.flatten_dim, config.latent_dim)
+        self.fc_decode = nn.Linear(config.latent_dim, self.flatten_dim)
+        self.dec4 = GatedDecoderFuseBlock(b*16, b*8, b*8)
+        self.dec3 = GatedDecoderFuseBlock(b*8, b*4, b*4)
+        self.dec2 = GatedDecoderFuseBlock(b*4, b*2, b*2)
+        self.dec1 = GatedDecoderFuseBlock(b*2, b, b)
+        self.final = nn.Sequential(
+            nn.Upsample(size=(config.image_size, config.image_size), mode='bilinear', align_corners=False),
+            nn.Conv2d(b, b, 3, padding=1, bias=False), nn.BatchNorm2d(b), nn.SiLU(inplace=True),
+            nn.Conv2d(b, 3, 3, padding=1), nn.Sigmoid(),
+        )
+
+    def encode(self, x: Tensor):
+        s1 = self.enc1(x)
+        s2 = self.enc2(s1)
+        s3 = self.enc3(s2)
+        s4 = self.enc4(s3)
+        b = self.enc5(s4)
+        flat = b.flatten(1)
+        mu = self.fc_mu(flat)
+        logvar = self.fc_logvar(flat)
+        return mu, logvar, (s1, s2, s3, s4)
+
+    def decode(self, z: Tensor, skips):
+        s1, s2, s3, s4 = skips
+        x = self.fc_decode(z).view(z.shape[0], self.config.base_channels*16, 7, 7)
+        x = self.dec4(x, s4)
+        x = self.dec3(x, s3)
+        x = self.dec2(x, s2)
+        x = self.dec1(x, s1)
+        return self.final(x)
+
+    def forward(self, x: Tensor):
+        mu, logvar, skips = self.encode(x)
+        recon = self.decode(mu, skips)
+        return recon, mu, logvar
+
 class SkipConnectedAutoencoder(nn.Module):
     def __init__(self, config: SkipAEConfig):
         super().__init__()
