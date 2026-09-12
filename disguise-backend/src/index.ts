@@ -8,6 +8,7 @@ import { connectDatabase } from './config/database';
 import { ensureBuckets } from './config/minio';
 import { startWorkers } from './queues';
 import { camerasService } from './modules/cameras/cameras.service';
+import { syncMissingWatchlistEmbeddings } from './modules/watchlist/watchlist-sync.service';
 
 import axios from 'axios';
 
@@ -37,6 +38,7 @@ async function bootstrap() {
     await connectRedis();
     await ensureBuckets();
     await checkMediaMTX();
+    await syncMissingWatchlistEmbeddings();
 
     // Create HTTP + WebSocket server
     const httpServer = createServer(app);
