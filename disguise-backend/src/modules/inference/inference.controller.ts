@@ -54,40 +54,36 @@ export class InferenceController {
         throw badRequest('Max faces per capture exceeded');
       }
 
-      // 4. Backpressure and flood protection (2-layer Redis lock)
+      // 4. Backpressure and flood protection (Multi-face aware & backlog controlled)
       const redis = require('../../config/redis').getRedis();
       const activeCaptureKey = `camera-inference:${camera.id}:capture_id`;
       const pendingCountKey = `camera-inference:${camera.id}:count`;
       const samplingLockKey = `camera-capture:${camera.id}`;
+      const lastCaptureKey = `camera-inference:${camera.id}:last_capture_id`;
 
-      let activeCapture = await redis.get(activeCaptureKey);
-
-      if (activeCapture && activeCapture !== capture_id) {
-        throw new AppError('TOO_MANY_REQUESTS', 'Camera is processing another frame', 429);
+      // Backpressure: drop incoming frames if the camera's BullMQ queue is saturated
+      const currentBacklog = parseInt(await redis.get(pendingCountKey) || '0', 10);
+      const maxBacklog = Number(process.env.MAX_CAMERA_QUEUE_BACKLOG) || 20;
+      if (currentBacklog >= maxBacklog) {
+        throw new AppError('TOO_MANY_REQUESTS', 'Camera inference queue backlog exceeded', 429);
       }
 
-      if (activeCapture !== capture_id) {
-        // Atomically attempt to make this capture_id the active one
-        const acquired = await redis.set(activeCaptureKey, capture_id, 'NX', 'EX', 60);
-        if (acquired) {
-          // We are the first face of this new capture. Check sampling rate!
-          const sampled = await redis.set(samplingLockKey, capture_id, 'NX', 'EX', 1);
-          if (!sampled) {
-            // Rate limit exceeded. Revert active capture.
-            await redis.del(activeCaptureKey);
-            throw new AppError('TOO_MANY_REQUESTS', 'Camera sampling limit exceeded', 429);
-          }
-          await redis.set(pendingCountKey, 0, 'EX', 60);
-        } else {
-          // Another face sneaked in. Verify it's ours.
-          activeCapture = await redis.get(activeCaptureKey);
-          if (activeCapture !== capture_id) {
-            throw new AppError('TOO_MANY_REQUESTS', 'Camera is processing another frame', 429);
-          }
+      // Multi-face check: If this face belongs to the same capture_id as the last seen capture,
+      // it is part of the same frame and should NOT be rate-limited by sampling throttle.
+      const lastCaptureId = await redis.get(lastCaptureKey);
+      const isSameCapture = lastCaptureId === capture_id;
+
+      if (!isSameCapture) {
+        // Enforce capture sampling rate for NEW captures (at most 1 capture per 500ms to prevent flood)
+        const sampled = await redis.set(samplingLockKey, capture_id, 'PX', 500, 'NX');
+        if (!sampled) {
+          throw new AppError('TOO_MANY_REQUESTS', 'Camera sampling limit exceeded', 429);
         }
+        await redis.set(lastCaptureKey, capture_id, 'EX', 10);
+        await redis.set(activeCaptureKey, capture_id, 'EX', 60);
       }
 
-      // We safely belong to the activeCapture now.
+      // Increment pending count in BullMQ for this camera
       await redis.incr(pendingCountKey);
       await redis.expire(pendingCountKey, 60);
 

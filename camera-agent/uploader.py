@@ -57,9 +57,9 @@ class BackendUploader:
                 )
                 
                 if response.status_code == 429:
-                    logger.warning(f"Backend returned 429 Too Many Requests for capture {task['data'].get('capture_id')}")
+                    logger.warning(f"Backend returned 429 Too Many Requests for capture {task['data'].get('capture_id')}: {response.text}")
                     import time
-                    time.sleep(1.0)  # Back off 1 second when rate limited
+                    time.sleep(0.3)  # Short backoff
                 else:
                     response.raise_for_status()
                     job_id = response.json().get('data', {}).get('job_id')
