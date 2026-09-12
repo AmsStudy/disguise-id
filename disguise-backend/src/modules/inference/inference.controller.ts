@@ -63,7 +63,7 @@ export class InferenceController {
 
       // Backpressure: drop incoming frames if the camera's BullMQ queue is saturated
       const currentBacklog = parseInt(await redis.get(pendingCountKey) || '0', 10);
-      const maxBacklog = Number(process.env.MAX_CAMERA_QUEUE_BACKLOG) || 20;
+      const maxBacklog = Number(process.env.MAX_CAMERA_QUEUE_BACKLOG) || 100;
       if (currentBacklog >= maxBacklog) {
         throw new AppError('TOO_MANY_REQUESTS', 'Camera inference queue backlog exceeded', 429);
       }
@@ -83,9 +83,9 @@ export class InferenceController {
         await redis.set(activeCaptureKey, capture_id, 'EX', 60);
       }
 
-      // Increment pending count in BullMQ for this camera
+      // Increment pending count in BullMQ for this camera (auto-recovers within 15s)
       await redis.incr(pendingCountKey);
-      await redis.expire(pendingCountKey, 60);
+      await redis.expire(pendingCountKey, 15);
 
       // 5. Upload files to MinIO
       const faceCropKey = generateFileKey('frames', faceCrop.originalname);
