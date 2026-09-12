@@ -38,7 +38,7 @@ def start_ffmpeg_push(local_rtsp_url, central_url, camera_id):
         "-use_wallclock_as_timestamps", "1",
         "-fflags", "+genpts+nobuffer",
         "-rtsp_transport", "tcp",
-        "-timeout", "5000000",
+        "-stimeout", "5000000",
         "-i", push_source_url,
         "-c:v", "copy",
         "-an",
@@ -59,12 +59,25 @@ class StreamSupervisor:
         self.running = False
         self.thread = None
         self.lock = threading.Lock()
+        self.last_stderr_lines = []
         
         # State params
         self.is_enabled = False
         self.local_rtsp_url = ""
         self.central_url = ""
         self.camera_id = ""
+
+    def _drain_stderr(self, proc):
+        """Continuously drains stderr pipe to prevent FFmpeg from freezing."""
+        try:
+            for raw_line in iter(proc.stderr.readline, b''):
+                line = raw_line.decode('utf-8', errors='ignore').strip()
+                if line:
+                    self.last_stderr_lines.append(line)
+                    if len(self.last_stderr_lines) > 20:
+                        self.last_stderr_lines.pop(0)
+        except Exception:
+            pass
 
     def update_params(self, enabled: bool, local_rtsp_url: str, central_url: str, camera_id: str):
         with self.lock:
@@ -113,17 +126,15 @@ class StreamSupervisor:
 
                 if self.process is None or self.process.poll() is not None:
                     if self.process is not None:
-                        err_msg = ""
-                        try:
-                            if self.process.stderr:
-                                err_msg = self.process.stderr.read().decode('utf-8', errors='ignore').strip()
-                        except Exception:
-                            pass
-                        logger.warning(f"[StreamSupervisor] FFmpeg exited (code {self.process.returncode}). {('Error: ' + err_msg[-300:]) if err_msg else ''}. Auto-restarting in 2s...")
+                        err_msg = " | ".join(self.last_stderr_lines[-5:]) if self.last_stderr_lines else ""
+                        logger.warning(f"[StreamSupervisor] FFmpeg exited (code {self.process.returncode}). {('Error: ' + err_msg) if err_msg else ''}. Auto-restarting in 2s...")
                         time.sleep(2)
                     
                     if self.running:
+                        self.last_stderr_lines = []
                         self.process = start_ffmpeg_push(local_rtsp, central_url, cam_id)
+                        if self.process and self.process.stderr:
+                            threading.Thread(target=self._drain_stderr, args=(self.process,), daemon=True).start()
 
                 time.sleep(2)
             except Exception as e:

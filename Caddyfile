@@ -40,7 +40,7 @@ http://storage.{$DOMAIN_NAME} {
 }
 
 http://stream.{$DOMAIN_NAME} {
-    # Rute ke MediaMTX WHEP (Live Streaming)
+    # Rute ke MediaMTX WHEP (Live Streaming) & HLS
     # Ini menyelesaikan masalah "Mixed Content" karena sekarang streaming memiliki HTTPS dari Cloudflare
     
     @options {
@@ -54,5 +54,14 @@ http://stream.{$DOMAIN_NAME} {
         respond "" 204
     }
 
-    reverse_proxy mediamtx:8889
+    # WHEP WebRTC signaling endpoint (e.g. /camera-id/whep)
+    @whep path */whep
+    handle @whep {
+        reverse_proxy mediamtx:8889
+    }
+
+    # HLS fallback and static stream playback (e.g. /camera-id/index.m3u8)
+    handle {
+        reverse_proxy mediamtx:8888
+    }
 }

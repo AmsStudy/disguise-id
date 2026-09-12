@@ -58,6 +58,8 @@ services:
     restart: unless-stopped
     ports:
       - "8554:8554" # RTSP ingest port (Push stream dari CCTV Tapo / Raspberry Pi)
+      - "8189:8189/udp" # WebRTC ICE UDP media traffic
+      - "8189:8189/tcp" # WebRTC ICE TCP media traffic
       - "127.0.0.1:8888:8888" # HLS internal
       - "127.0.0.1:8889:8889" # WHEP WebRTC internal (publik via stream.{$DOMAIN_NAME} Caddy)
       - "127.0.0.1:9997:9997" # MediaMTX API internal
